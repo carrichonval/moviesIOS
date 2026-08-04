@@ -8,7 +8,7 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
 import { Check, ChevronLeft, Heart, Star } from 'lucide-react-native'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { BrowseMovieCard, RATING_VALUES } from '@/features/movies/components/BrowseMovieCard'
-import { MAEVA_RATING_COLOR, MAEVA_USER_ID, VALENTIN_RATING_COLOR } from '@/constants/people'
+import { MAEVA_RATING_COLOR, MAEVA_USER_ID, VALENTIN_RATING_COLOR, VALENTIN_USER_ID } from '@/constants/people'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useLibraryEntryLookup, useMarkAsViewed, useRateTitle, useToggleWishlist } from '@/features/movies/api/library'
 import { useTitleDetails } from '@/features/movies/hooks/useTmdbBrowse'
@@ -82,11 +82,17 @@ export default function MovieDetailScreen() {
     const similar = details?.similar ?? []
     const libraryEntry = libraryLookup.get(`${resolvedMediaType}-${tmdbId}`)
     const isWishlist = libraryEntry?.isWishlist ?? false
-    const hasViewed = (libraryEntry?.viewingsCount ?? 0) > 0
+    const viewingsCount = libraryEntry?.viewingsCount ?? 0
+    const hasViewed = viewingsCount > 0
     const myRating = libraryEntry?.ratings.find((r) => r.userId === session?.user.id)?.rating ?? null
-    const partnerRatingEntry = libraryEntry?.ratings.find((r) => r.userId !== session?.user.id) ?? null
-    const partnerRating = partnerRatingEntry?.rating ?? null
-    const partnerRatingColor = partnerRatingEntry?.userId === MAEVA_USER_ID ? MAEVA_RATING_COLOR : VALENTIN_RATING_COLOR
+    const myRatingColor = session?.user.id === MAEVA_USER_ID ? MAEVA_RATING_COLOR : VALENTIN_RATING_COLOR
+    // Fixed by identity rather than "whoever isn't me", so the partner's row still shows
+    // (empty/disabled) even before they've rated anything — not derivable from `ratings`
+    // alone if they have no entry yet.
+    const partnerUserId = session?.user.id === MAEVA_USER_ID ? VALENTIN_USER_ID : MAEVA_USER_ID
+    const partnerName = partnerUserId === MAEVA_USER_ID ? 'Maeva' : 'Valentin'
+    const partnerRatingColor = partnerUserId === MAEVA_USER_ID ? MAEVA_RATING_COLOR : VALENTIN_RATING_COLOR
+    const partnerRating = libraryEntry?.ratings.find((r) => r.userId === partnerUserId)?.rating ?? null
 
     const releaseLabel = useMemo(() => formatReleaseDate(details?.releaseDate ?? null), [ details?.releaseDate ])
     const runtimeLabel = formatRuntime(details?.runtimeMinutes ?? null)
@@ -209,40 +215,60 @@ export default function MovieDetailScreen() {
                             </Text>
                         </Pressable>
 
+                        {/* Info only, not tappable — the actual "mark as viewed" action is the
+                            button below. Mixing "here's the state" and "tap to add a viewing"
+                            into one pill made the action look like a toggle it isn't. */}
+                        {hasViewed ? (
+                            <View className="flex-row items-center gap-1.5 rounded-full border border-accent-light bg-accent-light/20 px-3 py-1.5">
+                                <Check size={14} color="#409CFF" />
+                                <Text className="text-[13px] font-medium text-accent-light">
+                                    Vu{viewingsCount > 1 ? ` · ${viewingsCount}×` : ''}
+                                </Text>
+                            </View>
+                        ) : null}
+                    </Animated.View>
+
+                    <Animated.View entering={FadeInDown.delay(100).duration(300)} className="mt-3 px-5">
                         <Pressable
                             onPress={handleViewedPress}
-                            className={`flex-row items-center gap-1.5 rounded-full border px-3 py-1.5 active:opacity-60 ${
-                                hasViewed ? 'border-accent-light bg-accent-light/20' : 'border-border-subtle bg-surface'
-                            }`}
+                            className="flex-row items-center justify-center gap-2 self-start rounded-2xl bg-accent px-4 py-2.5 active:opacity-70"
                         >
-                            <Check size={14} color={hasViewed ? '#409CFF' : '#EBEBF599'} />
-                            <Text className={`text-[13px] font-medium ${hasViewed ? 'text-accent-light' : 'text-content-secondary'}`}>
-                                {hasViewed ? 'Revu' : 'Vu'}
+                            <Check size={16} color="#FFFFFF" />
+                            <Text className="text-[14px] font-semibold text-content-primary">
+                                {hasViewed ? 'Revu (+1)' : 'Marquer comme vu'}
                             </Text>
                         </Pressable>
                     </Animated.View>
 
                     {hasViewed ? (
-                        <Animated.View entering={FadeInDown.delay(120).duration(300)} className="mt-8 gap-3 px-5">
-                            <Text className="text-[17px] font-bold text-content-primary">Ta note</Text>
-                            <View className="flex-row items-center gap-3">
+                        <Animated.View entering={FadeInDown.delay(120).duration(300)} className="mt-8 flex-row justify-between px-5">
+                            <View className="gap-2">
+                                <Text className="text-[17px] font-bold text-content-primary">Ta note</Text>
                                 <View className="flex-row gap-1">
                                     {RATING_VALUES.map((value) => (
                                         <Pressable key={value} onPress={() => handleRatePress(value)} hitSlop={4}>
                                             <Star
                                                 size={26}
-                                                color="#FFD60A"
-                                                fill={myRating !== null && value <= myRating ? '#FFD60A' : 'transparent'}
+                                                color={myRatingColor}
+                                                fill={myRating !== null && value <= myRating ? myRatingColor : 'transparent'}
                                             />
                                         </Pressable>
                                     ))}
                                 </View>
-                                {partnerRating ? (
-                                    <View className="flex-row items-center gap-1">
-                                        <Heart size={16} color={partnerRatingColor} fill={partnerRatingColor} />
-                                        <Text className="text-[13px] font-semibold text-content-primary">{partnerRating}</Text>
-                                    </View>
-                                ) : null}
+                            </View>
+
+                            <View className="gap-2">
+                                <Text className="text-[17px] font-bold text-content-primary">Note de {partnerName}</Text>
+                                <View className="flex-row gap-1">
+                                    {RATING_VALUES.map((value) => (
+                                        <Star
+                                            key={value}
+                                            size={26}
+                                            color={partnerRatingColor}
+                                            fill={partnerRating !== null && value <= partnerRating ? partnerRatingColor : 'transparent'}
+                                        />
+                                    ))}
+                                </View>
                             </View>
                         </Animated.View>
                     ) : null}

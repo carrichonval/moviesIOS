@@ -74,7 +74,10 @@ function BrowseMovieCardComponent({
 
     const isWishlist = libraryEntry?.isWishlist ?? false
     const hasViewed = (libraryEntry?.viewingsCount ?? 0) > 0
-    const viewedLabel = hasViewed ? 'Revu' : 'Vu'
+    // Not `selected: hasViewed` — this action always inserts another viewing (see
+    // `useMarkAsViewed`), it never un-marks anything, so showing it as an already-checked
+    // toggle item was misleading. Label instead makes the "+1" nature explicit.
+    const viewedLabel = hasViewed ? 'Revu (+1)' : 'Marquer comme vu'
 
     const myRating = libraryEntry?.ratings.find((r) => r.userId === session?.user.id)?.rating ?? null
     // Fixed by identity, not "mine vs the other account" — same as the detail screen, so a
@@ -96,8 +99,7 @@ function BrowseMovieCardComponent({
             },
             {
                 title: viewedLabel,
-                systemIcon: 'checkmark.circle',
-                selected: hasViewed,
+                systemIcon: hasViewed ? 'arrow.clockwise' : 'checkmark.circle',
             },
         ]
 
@@ -128,7 +130,7 @@ function BrowseMovieCardComponent({
             return
         }
 
-        if (name === 'Vu' || name === 'Revu') {
+        if (name === viewedLabel) {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
             markAsViewed.mutate(item, {
                 onSuccess: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
