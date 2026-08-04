@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { Pressable, StyleSheet, Text, View, type NativeSyntheticEvent } from 'react-native'
 import { Image } from 'expo-image'
 import * as Haptics from 'expo-haptics'
@@ -8,14 +8,29 @@ import ContextMenu, {
     type ContextMenuOnPressNativeEvent,
 } from 'react-native-context-menu-view'
 import { router } from 'expo-router'
-import { Check, Heart, Star } from 'lucide-react-native'
+import { Check, Heart } from 'lucide-react-native'
 import type { TmdbBrowseItem } from '@/types/tmdb'
+import { MAEVA_RATING_COLOR, MAEVA_USER_ID, VALENTIN_RATING_COLOR, VALENTIN_USER_ID } from '@/constants/people'
 import { useAuth } from '@/features/auth/AuthProvider'
-import { useLibraryQuery, useMarkAsViewed, useRateTitle, useToggleWishlist } from '@/features/movies/api/library'
+import {
+    useMarkAsViewed,
+    useRateTitle,
+    useToggleWishlist,
+    type MovieLibraryEntry,
+} from '@/features/movies/api/library'
 
 interface BrowseMovieCardProps {
     item: TmdbBrowseItem;
     width?: number;
+    /** Resolved library state for this exact item, or `null` if it isn't in the library at
+     * all. Required, not optional: the card itself has zero data-fetching hooks (no
+     * `useLibraryQuery()` inside), so at 150+ simultaneous cards there's no per-card
+     * QueryObserver overhead — every caller resolves this once, up front, the same way
+     * gameTracker's `GameCoverCard` receives fully-resolved props. Screens that only have a
+     * bare `TmdbBrowseItem[]` (search/browse/similar rows) call `useLibraryEntryLookup()`
+     * once and look each item up by `${mediaType}-${tmdbId}`; the library screen already has
+     * the resolved entry per row and passes it straight through. */
+    libraryEntry: MovieLibraryEntry | null;
     /** Offer "Noter" in the long-press menu — off by default. Even when on, it only shows
      * once the title has actually been watched (rating something you've never seen makes
      * no sense), so search/browse cards never pass this and library cards still won't show
@@ -29,6 +44,10 @@ interface BrowseMovieCardProps {
      * tab, where every card is already wishlisted by definition (still on by default in
      * "Vu", where it means something: seen, but still wants a rewatch). */
     showWishlistBadge?: boolean;
+    /** Show each person's rating (heart + number, bottom corners) — off by default. Only the
+     * library screen turns this on; search/browse/genres/similar-titles rows are about
+     * discovering something new, not reviewing what's already been rated. */
+    showRatingBadges?: boolean;
 }
 
 const COVER_RADIUS = 16
@@ -38,34 +57,30 @@ const COVER_ASPECT_RATIO = 3 / 2 // TMDB posters are 2:3 (width:height)
 const WISHLIST_LABEL = 'Liste de souhait'
 export const RATING_VALUES = [ 1, 2, 3, 4, 5 ]
 
-// "Mine" (blue) vs "the other person's" (pink) rather than fixed names — works for
-// whichever of the two accounts is signed in, and for the second household account
-// once it exists (see 0001_movies_schema.sql — rating is the one per-user field here).
-const MY_RATING_COLOR = '#409CFF'
-const PARTNER_RATING_COLOR = '#FF2D55'
-
-export function BrowseMovieCard({
+function BrowseMovieCardComponent({
     item,
     width = COVER_WIDTH,
+    libraryEntry: libraryEntryProp,
     allowRating = false,
     showViewedBadge = true,
     showWishlistBadge = true,
+    showRatingBadges = false,
 }: BrowseMovieCardProps) {
     const { session } = useAuth()
-    const libraryQuery = useLibraryQuery()
+    const libraryEntry = libraryEntryProp
     const toggleWishlist = useToggleWishlist()
     const markAsViewed = useMarkAsViewed()
     const rateTitle = useRateTitle()
 
-    const libraryEntry = libraryQuery.data?.find(
-        (entry) => entry.tmdbId === item.tmdbId && entry.mediaType === item.mediaType,
-    )
     const isWishlist = libraryEntry?.isWishlist ?? false
     const hasViewed = (libraryEntry?.viewingsCount ?? 0) > 0
     const viewedLabel = hasViewed ? 'Revu' : 'Vu'
 
     const myRating = libraryEntry?.ratings.find((r) => r.userId === session?.user.id)?.rating ?? null
-    const partnerRating = libraryEntry?.ratings.find((r) => r.userId !== session?.user.id)?.rating ?? null
+    // Fixed by identity, not "mine vs the other account" — same as the detail screen, so a
+    // title shows the same two colors regardless of whose phone you're looking at.
+    const valentinRating = libraryEntry?.ratings.find((r) => r.userId === VALENTIN_USER_ID)?.rating ?? null
+    const maevaRating = libraryEntry?.ratings.find((r) => r.userId === MAEVA_USER_ID)?.rating ?? null
 
     // Rating a title you've never watched doesn't make sense, so the option only shows
     // once there's at least one viewing — and only where the caller opted in at all
@@ -126,7 +141,7 @@ export function BrowseMovieCard({
         if (ratingMatch !== undefined) {
             Haptics.selectionAsync()
             rateTitle.mutate(
-                { item, rating: ratingMatch },
+                { item, rating: ratingMatch, userId: session?.user.id },
                 {
                     onSuccess: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
                     onError: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error),
@@ -161,23 +176,32 @@ export function BrowseMovieCard({
         </>
     )
 
-    const ratingBadges = (
-        <>
-            {myRating ? (
-                <View className="h-6 w-6 items-center justify-center rounded-full" style={{ backgroundColor: MY_RATING_COLOR }}>
-                    <Text className="text-[11px] font-bold text-white">{myRating}</Text>
-                </View>
-            ) : null}
-            {partnerRating ? (
-                <View className="h-6 w-6 items-center justify-center rounded-full" style={{ backgroundColor: PARTNER_RATING_COLOR }}>
-                    <Text className="text-[11px] font-bold text-white">{partnerRating}</Text>
-                </View>
-            ) : null}
-        </>
-    )
+    // Each person's note on this title, as a small heart + number — same shape as the
+    // partner-rating badge on the detail screen (`movie/[id].tsx`), one on each bottom
+    // corner instead of side by side, visible without opening the long-press menu.
+    const valentinRatingBadge = showRatingBadges && valentinRating ? (
+        <View className="flex-row items-center gap-1 rounded-full bg-black/60 px-1.5 py-1">
+            <Heart size={12} color={VALENTIN_RATING_COLOR} fill={VALENTIN_RATING_COLOR} />
+            <Text className="text-[11px] font-semibold text-content-primary">{valentinRating}</Text>
+        </View>
+    ) : null
+
+    const maevaRatingBadge = showRatingBadges && maevaRating ? (
+        <View className="flex-row items-center gap-1 rounded-full bg-black/60 px-1.5 py-1">
+            <Heart size={12} color={MAEVA_RATING_COLOR} fill={MAEVA_RATING_COLOR} />
+            <Text className="text-[11px] font-semibold text-content-primary">{maevaRating}</Text>
+        </View>
+    ) : null
 
     return (
         <Animated.View entering={FadeIn.duration(300)} style={{ width }}>
+            {/* Bare image, no badges — this bottom copy exists only as a static fallback the
+                long-press animation below can never desync (see the comment on
+                `ContextMenu`), so it's never seen for more than a couple of frames. Badges
+                (viewed/wishlist/ratings) only render on the copy that's actually visible
+                below — duplicating them here was real per-card mount cost for a layer
+                nobody looks at, back when 100+ cards rendered simultaneously; the FlatList
+                windowing in `(tabs)/index.tsx` now caps that to ~12-30 at a time. */}
             <View className="overflow-hidden rounded-card bg-surface" style={{ borderRadius: COVER_RADIUS }}>
                 <Image
                     source={imageSource}
@@ -186,19 +210,13 @@ export function BrowseMovieCard({
                     contentFit="cover"
                     transition={200}
                 />
-                <View className="absolute right-2 top-2 flex-row items-center gap-1">{badges}</View>
-                {item.rating ? (
-                    <View className="absolute bottom-2 left-2 flex-row items-center gap-1 rounded-full bg-black/60 px-2 py-1">
-                        <Star size={11} color="#FFD60A" fill="#FFD60A" />
-                        <Text className="text-[11px] font-semibold text-content-primary">{item.rating.toFixed(1)}</Text>
-                    </View>
-                ) : null}
-                <View className="absolute bottom-2 right-2 flex-row items-center gap-1">{ratingBadges}</View>
             </View>
             {/* ContextMenu sits as a transparent touch layer above the image instead of
                 wrapping it — a second render of the same image, same idea as
                 BrowseGameCard/GameCoverCard in gameTracker, so the long-press preview
-                doesn't share a native view with the persistent layer and desync/flicker. */}
+                doesn't share a native view with the persistent layer and desync/flicker.
+                This second copy is the one normally visible (it paints on top) — see the
+                comment above for why badges only render here. */}
             <ContextMenu
                 actions={contextMenuActions}
                 onPress={handleContextMenuPress}
@@ -210,23 +228,49 @@ export function BrowseMovieCard({
                     <View className="overflow-hidden rounded-card bg-surface">
                         <Image
                             source={{ uri: item.posterUrl ?? undefined }}
+                            recyclingKey={`${item.mediaType}-${item.tmdbId}`}
                             style={{ width, height }}
                             contentFit="cover"
                             transition={200}
                         />
                         <View className="absolute right-2 top-2 flex-row items-center gap-1">{badges}</View>
-                        {item.rating ? (
-                            <View className="absolute bottom-2 left-2 flex-row items-center gap-1 rounded-full bg-black/60 px-2 py-1">
-                                <Star size={11} color="#FFD60A" fill="#FFD60A" />
-                                <Text className="text-[11px] font-semibold text-content-primary">
-                                    {item.rating.toFixed(1)}
-                                </Text>
-                            </View>
-                        ) : null}
-                        <View className="absolute bottom-2 right-2 flex-row items-center gap-1">{ratingBadges}</View>
+                        <View className="absolute bottom-2 left-2">{valentinRatingBadge}</View>
+                        <View className="absolute bottom-2 right-2">{maevaRatingBadge}</View>
                     </View>
                 </Pressable>
             </ContextMenu>
         </Animated.View>
     )
 }
+
+// `item` is rebuilt as a fresh object on every render wherever a parent maps a list into
+// `TmdbBrowseItem`/`MovieLibraryEntry` shapes (every current call site does) — reference
+// equality would never match, defeating memoization entirely. Compare the fields that
+// actually affect what's drawn instead, so switching an unrelated filter/tab on a 200+
+// item library grid doesn't re-render (and re-run each card's own library lookup for)
+// every visible card, only the ones whose own data actually changed.
+function arePropsEqual(prev: BrowseMovieCardProps, next: BrowseMovieCardProps) {
+    return (
+        prev.item.tmdbId === next.item.tmdbId &&
+        prev.item.mediaType === next.item.mediaType &&
+        prev.item.title === next.item.title &&
+        prev.item.posterUrl === next.item.posterUrl &&
+        prev.item.releaseDate === next.item.releaseDate &&
+        prev.item.rating === next.item.rating &&
+        prev.item.voteCount === next.item.voteCount &&
+        prev.width === next.width &&
+        prev.allowRating === next.allowRating &&
+        prev.showViewedBadge === next.showViewedBadge &&
+        prev.showWishlistBadge === next.showWishlistBadge &&
+        prev.libraryEntry?.isWishlist === next.libraryEntry?.isWishlist &&
+        prev.libraryEntry?.viewingsCount === next.libraryEntry?.viewingsCount &&
+        ratingsKey(prev.libraryEntry) === ratingsKey(next.libraryEntry)
+    )
+}
+
+function ratingsKey(entry: MovieLibraryEntry | null | undefined) {
+    if (!entry) return ''
+    return entry.ratings.map((r) => `${r.userId}:${r.rating}`).sort().join(',')
+}
+
+export const BrowseMovieCard = memo(BrowseMovieCardComponent, arePropsEqual)

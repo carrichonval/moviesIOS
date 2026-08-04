@@ -7,6 +7,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated'
 import { ChevronRight, Search as SearchIcon, SearchX, Tags, X } from 'lucide-react-native'
 import { SectionHeader } from '@/components/ui/SectionHeader'
 import { BrowseMovieCard } from '@/features/movies/components/BrowseMovieCard'
+import { useLibraryEntryLookup, type MovieLibraryEntry } from '@/features/movies/api/library'
 import {
     useDiscoverTitles,
     usePopularTitles,
@@ -35,9 +36,10 @@ interface TitleRowProps {
     isLoading: boolean;
     isError: boolean;
     delay: number;
+    libraryLookup: Map<string, MovieLibraryEntry>;
 }
 
-function TitleRow({ title, section, mediaType, items, isLoading, isError, delay }: TitleRowProps) {
+function TitleRow({ title, section, mediaType, items, isLoading, isError, delay, libraryLookup }: TitleRowProps) {
     return (
         <Animated.View entering={FadeInDown.delay(delay).duration(400)} className="mb-8">
             <SectionHeader
@@ -62,7 +64,12 @@ function TitleRow({ title, section, mediaType, items, isLoading, isError, delay 
                     contentContainerStyle={{ gap: 14, paddingHorizontal: 20 }}
                 >
                     {items.map((item) => (
-                        <BrowseMovieCard key={`${item.mediaType}-${item.tmdbId}`} item={item} width={ROW_CARD_WIDTH} />
+                        <BrowseMovieCard
+                            key={`${item.mediaType}-${item.tmdbId}`}
+                            item={item}
+                            width={ROW_CARD_WIDTH}
+                            libraryEntry={libraryLookup.get(`${item.mediaType}-${item.tmdbId}`) ?? null}
+                        />
                     ))}
                 </ScrollView>
             )}
@@ -75,6 +82,7 @@ export default function SearchScreen() {
     const [ searchQuery, setSearchQuery ] = useState('')
     const [ isRefreshing, setIsRefreshing ] = useState(false)
     const [ mediaType, setMediaType ] = useState<MediaType>('movie')
+    const libraryLookup = useLibraryEntryLookup()
 
     const trimmedQuery = searchQuery.trim()
     const isSearching = trimmedQuery.length > 1
@@ -169,7 +177,13 @@ export default function SearchScreen() {
                         columnWrapperStyle={{ gap: GRID_GAP }}
                         onEndReachedThreshold={0.4}
                         onEndReached={search.hasNextPage && !search.isFetchingNextPage ? () => search.fetchNextPage() : undefined}
-                        renderItem={({ item }) => <BrowseMovieCard item={item} width={gridCardWidth} />}
+                        renderItem={({ item }) => (
+                            <BrowseMovieCard
+                                item={item}
+                                width={gridCardWidth}
+                                libraryEntry={libraryLookup.get(`${item.mediaType}-${item.tmdbId}`) ?? null}
+                            />
+                        )}
                         ListFooterComponent={
                             search.isFetchingNextPage ? (
                                 <View className="py-6">
@@ -195,6 +209,7 @@ export default function SearchScreen() {
                         isLoading={popular.isLoading}
                         isError={popular.isError}
                         delay={80}
+                        libraryLookup={libraryLookup}
                     />
                     <TitleRow
                         title="Récents"
@@ -204,6 +219,7 @@ export default function SearchScreen() {
                         isLoading={recent.isLoading}
                         isError={recent.isError}
                         delay={140}
+                        libraryLookup={libraryLookup}
                     />
                     <TitleRow
                         title="Découverte"
@@ -213,6 +229,7 @@ export default function SearchScreen() {
                         isLoading={discover.isLoading}
                         isError={discover.isError}
                         delay={200}
+                        libraryLookup={libraryLookup}
                     />
                     <TitleRow
                         title="Top 100"
@@ -222,6 +239,7 @@ export default function SearchScreen() {
                         isLoading={topRated.isLoading}
                         isError={topRated.isError}
                         delay={260}
+                        libraryLookup={libraryLookup}
                     />
 
                     <Animated.View entering={FadeInDown.delay(320).duration(400)} className="px-5">

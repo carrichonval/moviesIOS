@@ -8,8 +8,9 @@ import { BrowseMovieCard } from '@/features/movies/components/BrowseMovieCard'
 import { useLibraryQuery, type MovieLibraryEntry } from '@/features/movies/api/library'
 import type { MediaType, TmdbBrowseItem } from '@/types/tmdb'
 
-const GRID_HORIZONTAL_PADDING = 16
-const GRID_GAP = 12
+// Matches gameTracker's own library grid (`(tabs)/index.tsx`) exactly.
+const GRID_HORIZONTAL_PADDING = 10
+const GRID_GAP = 15
 const GRID_COLUMNS = 3
 
 type WatchedTab = 'vu' | 'a-voir'
@@ -62,28 +63,51 @@ export default function LibraryScreen() {
     // "Vu" = has at least one viewing (includes rewatches). "À voir" = on the wishlist —
     // independent of whether it's already been watched (e.g. "envie de le revoir"), so the
     // two buckets can overlap and a title with neither flag appears in neither tab.
-    const vuCount = library.filter((entry) => entry.viewingsCount > 0).length
-    const aVoirCount = library.filter((entry) => entry.isWishlist).length
+    const vuCount = useMemo(() => library.filter((entry) => entry.viewingsCount > 0).length, [ library ])
+    const aVoirCount = useMemo(() => library.filter((entry) => entry.isWishlist).length, [ library ])
 
-    const watchedTabEntries = library.filter((entry) => (watchedTab === 'vu' ? entry.viewingsCount > 0 : entry.isWishlist))
-    const mediaCounts = {
-        tous: watchedTabEntries.length,
-        movie: watchedTabEntries.filter((entry) => entry.mediaType === 'movie').length,
-        tv: watchedTabEntries.filter((entry) => entry.mediaType === 'tv').length,
-    }
+    const mediaCounts = useMemo(() => {
+        const entries = library.filter((entry) => (watchedTab === 'vu' ? entry.viewingsCount > 0 : entry.isWishlist))
+        return {
+            tous: entries.length,
+            movie: entries.filter((entry) => entry.mediaType === 'movie').length,
+            tv: entries.filter((entry) => entry.mediaType === 'tv').length,
+        }
+    }, [ library, watchedTab ])
 
-    const mediaFilteredEntries =
-        mediaFilter === 'tous' ? watchedTabEntries : watchedTabEntries.filter((entry) => entry.mediaType === mediaFilter)
+    const watchedTabEntries = useMemo(
+        () => library.filter((entry) => (watchedTab === 'vu' ? entry.viewingsCount > 0 : entry.isWishlist)),
+        [ library, watchedTab ],
+    )
+    const mediaFilteredEntries = useMemo(
+        () =>
+            mediaFilter === 'tous'
+                ? watchedTabEntries
+                : watchedTabEntries.filter((entry) => entry.mediaType === mediaFilter),
+        [ watchedTabEntries, mediaFilter ],
+    )
 
     const normalizedQuery = searchQuery.trim().toLowerCase()
-    const visibleEntries = normalizedQuery
-        ? mediaFilteredEntries.filter((entry) => entry.name.toLowerCase().includes(normalizedQuery))
-        : mediaFilteredEntries
-
-    const sortedEntries = useMemo(
-        () => [ ...visibleEntries ].sort((a, b) => a.name.localeCompare(b.name)),
-        [ visibleEntries ],
+    const visibleEntries = useMemo(
+        () =>
+            normalizedQuery
+                ? mediaFilteredEntries.filter((entry) => entry.name.toLowerCase().includes(normalizedQuery))
+                : mediaFilteredEntries,
+        [ mediaFilteredEntries, normalizedQuery ],
     )
+
+    // "Vu" sorts by when it was (last) watched, not when it was added — a title added
+    // ages ago but watched yesterday should still show up near the top. "À voir" has no
+    // viewing to sort by, so it falls back to most-recently-added, matching the old web app.
+    const sortedEntries = useMemo(() => {
+        const sorted = [ ...visibleEntries ]
+        if (watchedTab === 'vu') {
+            sorted.sort((a, b) => (b.lastViewedAt ?? '').localeCompare(a.lastViewedAt ?? ''))
+        } else {
+            sorted.sort((a, b) => b.addedAt.localeCompare(a.addedAt))
+        }
+        return sorted
+    }, [ visibleEntries, watchedTab ])
 
     const cardWidth =
         (Dimensions.get('window').width - GRID_HORIZONTAL_PADDING * 2 - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS
@@ -171,15 +195,25 @@ export default function LibraryScreen() {
                     <Text className="text-center text-[15px] text-content-tertiary">{getEmptyMessage()}</Text>
                 </View>
             ) : (
+                // Stable key, same as gameTracker's own library grid (`entry.userGameId`) — a
+                // card that's in both the old and new filter (e.g. "Films" is a 90%-overlapping
+                // subset of "Tous") keeps its identity and never remounts, only the cards that
+                // actually leave/enter the filtered set do.
                 <FlatList
                     key={GRID_COLUMNS}
                     data={sortedEntries}
                     keyExtractor={(entry) => entry.libraryEntryId}
                     numColumns={GRID_COLUMNS}
+                    // Defaults (windowSize=21) pre-render ~21 screens' worth around the current
+                    // position — on a 100+ item filter that's most/all of the list at once on
+                    // every tap, even though only ~12-15 cards are ever actually visible. These
+                    // caps make a tap only render what's on screen (+ a small buffer); the rest
+                    // streams in as the user scrolls, same as any virtualized list.
+                    initialNumToRender={2}
+                    maxToRenderPerBatch={6}
+                    windowSize={5}
                     showsVerticalScrollIndicator={false}
-                    refreshControl={
-                        <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#409CFF" />
-                    }
+                    refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#409CFF" />}
                     contentContainerStyle={{
                         paddingHorizontal: GRID_HORIZONTAL_PADDING,
                         paddingBottom: tabBarHeight + 24,
@@ -189,10 +223,12 @@ export default function LibraryScreen() {
                     renderItem={({ item: entry }) => (
                         <BrowseMovieCard
                             item={toBrowseItem(entry)}
+                            libraryEntry={entry}
                             width={cardWidth}
                             allowRating
                             showViewedBadge={false}
                             showWishlistBadge={watchedTab !== 'a-voir'}
+                            showRatingBadges
                         />
                     )}
                 />

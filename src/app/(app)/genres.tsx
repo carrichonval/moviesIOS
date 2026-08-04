@@ -6,6 +6,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated'
 import { ChevronLeft } from 'lucide-react-native'
 import { SectionHeader } from '@/components/ui/SectionHeader'
 import { BrowseMovieCard } from '@/features/movies/components/BrowseMovieCard'
+import { useLibraryEntryLookup, type MovieLibraryEntry } from '@/features/movies/api/library'
 import { useGenres, useTitlesByGenre } from '@/features/movies/hooks/useTmdbBrowse'
 import type { MediaType } from '@/types/tmdb'
 
@@ -16,11 +17,12 @@ const CATEGORY_TABS: { key: MediaType; label: string }[] = [
 
 const ROW_CARD_WIDTH = 110
 
-function GenreRow({ genreId, name, mediaType, delay }: {
+function GenreRow({ genreId, name, mediaType, delay, libraryLookup }: {
     genreId: number;
     name: string;
     mediaType: MediaType;
     delay: number;
+    libraryLookup: Map<string, MovieLibraryEntry>;
 }) {
     const { data: items, isLoading, isError } = useTitlesByGenre(genreId, mediaType)
 
@@ -53,7 +55,12 @@ function GenreRow({ genreId, name, mediaType, delay }: {
                     contentContainerStyle={{ gap: 14, paddingHorizontal: 20 }}
                 >
                     {items.map((item) => (
-                        <BrowseMovieCard key={`${item.mediaType}-${item.tmdbId}`} item={item} width={ROW_CARD_WIDTH} />
+                        <BrowseMovieCard
+                            key={`${item.mediaType}-${item.tmdbId}`}
+                            item={item}
+                            width={ROW_CARD_WIDTH}
+                            libraryEntry={libraryLookup.get(`${item.mediaType}-${item.tmdbId}`) ?? null}
+                        />
                     ))}
                 </ScrollView>
             )}
@@ -64,6 +71,7 @@ function GenreRow({ genreId, name, mediaType, delay }: {
 export default function GenresScreen() {
     const [ mediaType, setMediaType ] = useState<MediaType>('movie')
     const { data: genres, isLoading, isError } = useGenres(mediaType)
+    const libraryLookup = useLibraryEntryLookup()
 
     return (
         <SafeAreaView className="flex-1 bg-background" edges={[ 'top' ]}>
@@ -116,6 +124,7 @@ export default function GenresScreen() {
                             name={genre.name}
                             mediaType={mediaType}
                             delay={index * 40}
+                            libraryLookup={libraryLookup}
                         />
                     ))}
                 </ScrollView>

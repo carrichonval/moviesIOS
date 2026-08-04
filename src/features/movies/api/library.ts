@@ -1,6 +1,6 @@
+import { useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/features/auth/AuthProvider'
 import type { MediaType, TmdbBrowseItem } from '@/types/tmdb'
 
 // The `movies` schema isn't in src/types/database.ts (a stub scoped to `public`, see
@@ -24,6 +24,7 @@ interface LibraryEntryRow {
 interface LibraryQueryRow {
     id: string;
     is_wishlist: boolean;
+    added_at: string;
     titles: { id: string; tmdb_id: number; media_type: MediaType; name: string; poster_url: string | null; release_date: string | null };
     viewings: { viewed_at: string }[];
     ratings: { user_id: string; rating: number }[];
@@ -39,6 +40,7 @@ export interface MovieLibraryEntry {
     posterUrl: string | null;
     releaseDate: string | null;
     isWishlist: boolean;
+    addedAt: string;
     viewingsCount: number;
     lastViewedAt: string | null;
     /** Personal, per-user (see 0001_movies_schema.sql) — the only non-shared field here. */
@@ -49,7 +51,7 @@ async function fetchLibrary(): Promise<MovieLibraryEntry[]> {
     const { data, error } = await moviesDb
         .from('library_entries')
         .select(
-            'id, is_wishlist, titles(id, tmdb_id, media_type, name, poster_url, release_date), viewings(viewed_at), ratings(user_id, rating)',
+            'id, is_wishlist, added_at, titles(id, tmdb_id, media_type, name, poster_url, release_date), viewings(viewed_at), ratings(user_id, rating)',
         )
 
     if (error) throw error
@@ -65,6 +67,7 @@ async function fetchLibrary(): Promise<MovieLibraryEntry[]> {
             posterUrl: row.titles.poster_url,
             releaseDate: row.titles.release_date,
             isWishlist: row.is_wishlist,
+            addedAt: row.added_at,
             viewingsCount: row.viewings.length,
             lastViewedAt: viewedDates.length ? (viewedDates[ viewedDates.length - 1 ] ?? null) : null,
             ratings: row.ratings.map((r) => ({ userId: r.user_id, rating: r.rating })),
@@ -77,6 +80,23 @@ export function useLibraryQuery() {
         queryKey: [ 'movie-library' ],
         queryFn: fetchLibrary,
     })
+}
+
+// One `useLibraryQuery()` subscription + one O(1) map, shared by every card a screen
+// renders — the alternative (each card calling `useLibraryQuery()` and `.find()`-ing
+// itself) means N query observers and an O(N) scan per card on a library that's now in
+// the hundreds. Search/browse/similar-titles rows use this; the library screen itself
+// already has the resolved `MovieLibraryEntry` per row and doesn't need it.
+export function useLibraryEntryLookup() {
+    const libraryQuery = useLibraryQuery()
+
+    return useMemo(() => {
+        const map = new Map<string, MovieLibraryEntry>()
+        for (const entry of libraryQuery.data ?? []) {
+            map.set(`${entry.mediaType}-${entry.tmdbId}`, entry)
+        }
+        return map
+    }, [ libraryQuery.data ])
 }
 
 // Upserts without `ignoreDuplicates` on purpose: with it, an upsert that hits an existing
@@ -188,19 +208,21 @@ export function useMarkAsViewed() {
 
 // Personal, 1-5 (see 0002_fix_ratings_scale.sql) — one row per (library_entry, user),
 // upserted so re-rating just overwrites your previous score instead of stacking rows.
+// Takes `userId` from the caller instead of calling `useAuth()` itself — every caller
+// already has a session (it's needed to render "Ma note"), so a second internal Context
+// subscription here would just be a duplicate read on every card that uses this hook.
 export function useRateTitle() {
-    const { session } = useAuth()
     const queryClient = useQueryClient()
 
     return useMutation({
-        mutationFn: async ({ item, rating }: { item: TmdbBrowseItem; rating: number }) => {
-            if (!session?.user.id) throw new Error('Not authenticated')
+        mutationFn: async ({ item, rating, userId }: { item: TmdbBrowseItem; rating: number; userId: string | undefined }) => {
+            if (!userId) throw new Error('Not authenticated')
             const entry = await ensureLibraryEntryForItem(item)
 
             const { error } = await moviesDb
                 .from('ratings')
                 .upsert(
-                    { library_entry_id: entry.id, user_id: session.user.id, rating },
+                    { library_entry_id: entry.id, user_id: userId, rating },
                     { onConflict: 'library_entry_id,user_id' },
                 )
             if (error) throw error

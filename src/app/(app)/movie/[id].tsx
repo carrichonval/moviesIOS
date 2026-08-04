@@ -8,8 +8,9 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
 import { Check, ChevronLeft, Heart, Star } from 'lucide-react-native'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { BrowseMovieCard, RATING_VALUES } from '@/features/movies/components/BrowseMovieCard'
+import { MAEVA_RATING_COLOR, MAEVA_USER_ID, VALENTIN_RATING_COLOR } from '@/constants/people'
 import { useAuth } from '@/features/auth/AuthProvider'
-import { useLibraryQuery, useMarkAsViewed, useRateTitle, useToggleWishlist } from '@/features/movies/api/library'
+import { useLibraryEntryLookup, useMarkAsViewed, useRateTitle, useToggleWishlist } from '@/features/movies/api/library'
 import { useTitleDetails } from '@/features/movies/hooks/useTmdbBrowse'
 import type { MediaType } from '@/types/tmdb'
 
@@ -67,7 +68,7 @@ export default function MovieDetailScreen() {
 
     const { session } = useAuth()
     const detailsQuery = useTitleDetails(tmdbId, resolvedMediaType)
-    const libraryQuery = useLibraryQuery()
+    const libraryLookup = useLibraryEntryLookup()
     const toggleWishlist = useToggleWishlist()
     const markAsViewed = useMarkAsViewed()
     const rateTitle = useRateTitle()
@@ -79,13 +80,13 @@ export default function MovieDetailScreen() {
     const genres = details?.genres ?? []
     const seasons = details?.seasons ?? []
     const similar = details?.similar ?? []
-    const libraryEntry = libraryQuery.data?.find(
-        (entry) => entry.tmdbId === tmdbId && entry.mediaType === resolvedMediaType,
-    )
+    const libraryEntry = libraryLookup.get(`${resolvedMediaType}-${tmdbId}`)
     const isWishlist = libraryEntry?.isWishlist ?? false
     const hasViewed = (libraryEntry?.viewingsCount ?? 0) > 0
     const myRating = libraryEntry?.ratings.find((r) => r.userId === session?.user.id)?.rating ?? null
-    const partnerRating = libraryEntry?.ratings.find((r) => r.userId !== session?.user.id)?.rating ?? null
+    const partnerRatingEntry = libraryEntry?.ratings.find((r) => r.userId !== session?.user.id) ?? null
+    const partnerRating = partnerRatingEntry?.rating ?? null
+    const partnerRatingColor = partnerRatingEntry?.userId === MAEVA_USER_ID ? MAEVA_RATING_COLOR : VALENTIN_RATING_COLOR
 
     const releaseLabel = useMemo(() => formatReleaseDate(details?.releaseDate ?? null), [ details?.releaseDate ])
     const runtimeLabel = formatRuntime(details?.runtimeMinutes ?? null)
@@ -114,7 +115,7 @@ export default function MovieDetailScreen() {
         if (!details) return
         Haptics.selectionAsync()
         rateTitle.mutate(
-            { item: details, rating },
+            { item: details, rating, userId: session?.user.id },
             {
                 onSuccess: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
                 onError: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error),
@@ -237,8 +238,9 @@ export default function MovieDetailScreen() {
                                     ))}
                                 </View>
                                 {partnerRating ? (
-                                    <View className="h-7 w-7 items-center justify-center rounded-full" style={{ backgroundColor: '#FF2D55' }}>
-                                        <Text className="text-[12px] font-bold text-white">{partnerRating}</Text>
+                                    <View className="flex-row items-center gap-1">
+                                        <Heart size={16} color={partnerRatingColor} fill={partnerRatingColor} />
+                                        <Text className="text-[13px] font-semibold text-content-primary">{partnerRating}</Text>
                                     </View>
                                 ) : null}
                             </View>
@@ -294,7 +296,12 @@ export default function MovieDetailScreen() {
                                 contentContainerStyle={{ gap: 14, paddingHorizontal: 20 }}
                             >
                                 {similar.map((item) => (
-                                    <BrowseMovieCard key={`${item.mediaType}-${item.tmdbId}`} item={item} width={SIMILAR_CARD_WIDTH} />
+                                    <BrowseMovieCard
+                                        key={`${item.mediaType}-${item.tmdbId}`}
+                                        item={item}
+                                        width={SIMILAR_CARD_WIDTH}
+                                        libraryEntry={libraryLookup.get(`${item.mediaType}-${item.tmdbId}`) ?? null}
+                                    />
                                 ))}
                             </ScrollView>
                         </Animated.View>

@@ -23,8 +23,20 @@
 -- `select id, username, email from public.users;` — Valentin already has an account
 -- (same shared auth as gameTracker), no signup needed for him. Maeva needs to sign up
 -- in the app first so her row exists.
---   00000000-0000-0000-0000-000000000001  →  Valentin's real user id
---   00000000-0000-0000-0000-000000000002  →  Maeva's real user id
+--   b2a5b7f1-64f4-405d-9c83-41dae3150838  →  Valentin's real user id
+--   75fe8048-4742-4ca8-a589-2b85d361468e  →  Maeva's real user id
+--
+-- movies.date / historique.date are `text`, French format 'DD/MM/YYYY HH24:MI:SS' — a
+-- plain ::timestamptz cast misreads them as MM/DD (and errors outright once a day > 12
+-- shows up), so every date field below goes through to_timestamp() with an explicit
+-- format instead.
+
+-- The 0004 triggers stamp movies.events with now() (correct for live app use — see
+-- 0005's fix for why — but wrong for a historical backfill). Disabled for the bulk
+-- insert below; events for this import are inserted manually afterward with the real
+-- historical dates instead.
+alter table movies.library_entries disable trigger on_library_entry_inserted;
+alter table movies.viewings disable trigger on_viewing_inserted;
 
 -- 1. Titles — backfilled from the old `infos` JSON blob instead of re-querying TMDB for
 --    every historical title. `genres` intentionally left null (see note above).
@@ -39,14 +51,14 @@ select
   end as poster_url,
   nullif(coalesce(m.infos::jsonb ->> 'release_date', m.infos::jsonb ->> 'first_air_date'), '')::date as release_date,
   m.infos::jsonb ->> 'overview' as overview,
-  coalesce(m.date, now())
+  coalesce(to_timestamp(m.date, 'DD/MM/YYYY HH24:MI:SS'), now())
 from public.movies m
 on conflict (tmdb_id, media_type) do nothing;
 
 -- 2. Library entries — every old `movies` row was deliberately added at some point,
 --    regardless of its current wishlist/watched flags, so all of them get one.
 insert into movies.library_entries (title_id, is_wishlist, added_at)
-select t.id, (m.wishlist <> 0), coalesce(m.date, now())
+select t.id, (m.wishlist <> 0), coalesce(to_timestamp(m.date, 'DD/MM/YYYY HH24:MI:SS'), now())
 from public.movies m
 join movies.titles t on t.tmdb_id = m.movie_id and t.media_type = m.media_type::movies.media_type
 on conflict (title_id) do nothing;
@@ -55,7 +67,7 @@ on conflict (title_id) do nothing;
 --    (historique.movie_id alone is ambiguous: a movie and a TV show can share the same
 --    TMDB id since TMDB ids are only unique within a media type).
 insert into movies.viewings (library_entry_id, viewed_at, created_at)
-select le.id, h.date::date, h.date
+select le.id, to_timestamp(h.date, 'DD/MM/YYYY HH24:MI:SS')::date, to_timestamp(h.date, 'DD/MM/YYYY HH24:MI:SS')
 from public.historique h
 join public.movies m on m.movie_id = h.movie_id
 join movies.titles t on t.tmdb_id = m.movie_id and t.media_type = m.media_type::movies.media_type
@@ -64,7 +76,7 @@ join movies.library_entries le on le.title_id = t.id;
 -- 4. Ratings — skips 0 (not a real rating, see note above).
 --    Replace the placeholder UUIDs below before running.
 insert into movies.ratings (library_entry_id, user_id, rating)
-select le.id, '00000000-0000-0000-0000-000000000001'::uuid, m.note_valentin
+select le.id, 'b2a5b7f1-64f4-405d-9c83-41dae3150838'::uuid, m.note_valentin
 from public.movies m
 join movies.titles t on t.tmdb_id = m.movie_id and t.media_type = m.media_type::movies.media_type
 join movies.library_entries le on le.title_id = t.id
@@ -72,12 +84,36 @@ where m.note_valentin > 0
 on conflict (library_entry_id, user_id) do nothing;
 
 insert into movies.ratings (library_entry_id, user_id, rating)
-select le.id, '00000000-0000-0000-0000-000000000002'::uuid, m.note_maeva
+select le.id, '75fe8048-4742-4ca8-a589-2b85d361468e'::uuid, m.note_maeva
 from public.movies m
 join movies.titles t on t.tmdb_id = m.movie_id and t.media_type = m.media_type::movies.media_type
 join movies.library_entries le on le.title_id = t.id
 where m.note_maeva > 0
 on conflict (library_entry_id, user_id) do nothing;
+
+-- 5. Backfill movies.events with the real historical dates — mirrors exactly what the
+--    (disabled) triggers would have inserted, except occurred_at is the true historical
+--    date instead of now(). Scoped through the same joins as steps 2/3 so this only
+--    touches rows this import actually created, not any pre-existing library_entries
+--    (e.g. ones added by testing the app before this import ran).
+insert into movies.events (library_entry_id, event_type, occurred_at)
+select le.id, 'wishlisted', le.added_at
+from public.movies m
+join movies.titles t on t.tmdb_id = m.movie_id and t.media_type = m.media_type::movies.media_type
+join movies.library_entries le on le.title_id = t.id
+where m.wishlist <> 0;
+
+insert into movies.events (library_entry_id, event_type, occurred_at)
+select le.id, 'viewed', to_timestamp(h.date, 'DD/MM/YYYY HH24:MI:SS')
+from public.historique h
+join public.movies m on m.movie_id = h.movie_id
+join movies.titles t on t.tmdb_id = m.movie_id and t.media_type = m.media_type::movies.media_type
+join movies.library_entries le on le.title_id = t.id;
+
+-- 6. Re-enable the triggers now that the historical backfill is done — every mutation
+--    from the app going forward goes through them as normal.
+alter table movies.library_entries enable trigger on_library_entry_inserted;
+alter table movies.viewings enable trigger on_viewing_inserted;
 
 -- Sanity check after running: row counts should roughly match the legacy data
 -- (189 movies + 24 tv = 213 titles/library_entries expected).
@@ -85,4 +121,5 @@ select
   (select count(*) from movies.titles) as titles_count,
   (select count(*) from movies.library_entries) as library_entries_count,
   (select count(*) from movies.viewings) as viewings_count,
-  (select count(*) from movies.ratings) as ratings_count;
+  (select count(*) from movies.ratings) as ratings_count,
+  (select count(*) from movies.events) as events_count;

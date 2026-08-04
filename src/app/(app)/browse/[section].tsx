@@ -3,6 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { router, useLocalSearchParams } from 'expo-router'
 import { ChevronLeft } from 'lucide-react-native'
 import { BrowseMovieCard } from '@/features/movies/components/BrowseMovieCard'
+import { useLibraryEntryLookup } from '@/features/movies/api/library'
 import {
     useDiscoverTitlesInfinite,
     usePopularTitlesInfinite,
@@ -32,6 +33,7 @@ export default function BrowseSectionScreen() {
     }>()
     const resolvedMediaType: MediaType = mediaType === 'tv' ? 'tv' : 'movie'
     const resolvedGenreId = Number(genreId ?? 0)
+    const libraryLookup = useLibraryEntryLookup()
 
     const popular = usePopularTitlesInfinite({ enabled: section === 'popular', mediaType: resolvedMediaType })
     const recent = useRecentTitlesInfinite({ enabled: section === 'recent', mediaType: resolvedMediaType })
@@ -109,7 +111,13 @@ export default function BrowseSectionScreen() {
                     columnWrapperStyle={{ gap: GRID_GAP }}
                     onEndReachedThreshold={0.4}
                     onEndReached={onEndReached}
-                    renderItem={({ item }) => <BrowseMovieCard item={item} width={cardWidth} />}
+                    renderItem={({ item }) => (
+                        <BrowseMovieCard
+                            item={item}
+                            width={cardWidth}
+                            libraryEntry={libraryLookup.get(`${item.mediaType}-${item.tmdbId}`) ?? null}
+                        />
+                    )}
                     ListFooterComponent={
                         isFetchingMore ? (
                             <View className="py-6">
