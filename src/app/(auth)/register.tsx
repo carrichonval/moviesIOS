@@ -3,7 +3,8 @@ import { Pressable, Text, View } from 'react-native';
 import { Link } from 'expo-router';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MailCheck, UserPlus } from 'lucide-react-native';
+import { Image } from 'expo-image';
+import { MailCheck } from 'lucide-react-native';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { registerSchema, type RegisterFormValues } from '@/features/auth/schemas';
@@ -59,9 +60,11 @@ export default function RegisterScreen() {
         bottomOffset={20}
       >
         <View className="items-center gap-3">
-          <View className="h-16 w-16 items-center justify-center rounded-2xl bg-accent">
-            <UserPlus size={28} color="#FFFFFF" />
-          </View>
+          <Image
+            source={require('../../../assets/icon.png')}
+            style={{ width: 140, height: 140 }}
+            contentFit="contain"
+          />
           <Text className="text-[28px] font-bold text-content-primary">Créer un compte</Text>
           <Text className="text-center text-[15px] text-content-secondary">
             Rejoins votre bibliothèque de films et séries partagée.

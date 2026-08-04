@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Animated, Keyboard, Platform, Pressable, Text, View, type KeyboardEvent } from 'react-native'
 import { Link } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Clapperboard } from 'lucide-react-native'
+import { Image } from 'expo-image'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { loginSchema, type LoginFormValues } from '@/features/auth/schemas'
@@ -81,9 +81,11 @@ export default function LoginScreen() {
                 style={{ paddingBottom: keyboardPadding }}
             >
                 <View className="items-center gap-3">
-                    <View className="h-16 w-16 items-center justify-center rounded-2xl bg-accent">
-                        <Clapperboard size={30} color="#FFFFFF"/>
-                    </View>
+                    <Image
+                        source={require('../../../assets/icon.png')}
+                        style={{ width: 140, height: 140 }}
+                        contentFit="contain"
+                    />
                     <Text className="text-[28px] font-bold text-content-primary">Krokmo'vie</Text>
                     <Text className="text-center text-[15px] text-content-secondary">
                         {'Votre bibliothèque de films et séries à deux.\nConnecte-toi pour retrouver votre liste.'}
