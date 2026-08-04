@@ -1,4 +1,5 @@
 import '../../global.css';
+import '@/features/notifications/setup';
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -10,11 +11,18 @@ import * as SplashScreen from 'expo-splash-screen';
 import { queryClient } from '@/lib/queryClient';
 import { persistOptions } from '@/lib/queryPersister';
 import { AuthProvider, useAuth } from '@/features/auth/AuthProvider';
+import { useRequestNotificationPermissionOnLaunch } from '@/features/notifications/hooks';
+import { useNotificationResponseHandler } from '@/features/notifications/useNotificationResponseHandler';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function RootNavigator() {
   const { session, isLoading } = useAuth();
+  // No-ops internally until there's a session (see each hook) — kept unconditional here
+  // since hooks can't be called conditionally, and there's no (app)/_layout.tsx in this
+  // project to scope them to the authenticated tree instead.
+  useRequestNotificationPermissionOnLaunch();
+  useNotificationResponseHandler();
 
   useEffect(() => {
     if (!isLoading) SplashScreen.hideAsync();

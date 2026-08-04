@@ -18,9 +18,9 @@
   "submit": {
     "production": {
       "ios": {
-        "appleId": "__APPLE_ID__",
-        "ascAppId": "__ASC_APP_ID__",
-        "appleTeamId": "__APPLE_TEAM_ID__"
+        "appleId": "valentin.carrichon@outlook.com",
+        "ascAppId": "6797950214",
+        "appleTeamId": "BRSXHCB36Q"
       }
     }
   }

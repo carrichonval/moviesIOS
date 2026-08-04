@@ -1,15 +1,16 @@
 import { useState } from 'react'
-import { Alert, Pressable, Text, View } from 'react-native'
+import { Alert, Pressable, Switch, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller'
-import { Bell, ChevronRight, LogOut } from 'lucide-react-native'
+import { Bell, LogOut } from 'lucide-react-native'
 import * as Haptics from 'expo-haptics'
 import { router } from 'expo-router'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { deleteAccount, signOut } from '@/features/auth/api'
 import { updateEmail, updatePassword } from '@/features/profile/api'
 import { useProfile, useUpdateUsername } from '@/features/profile/hooks'
+import { useNotificationsPreference, useSetNotificationsPreference } from '@/features/notifications/hooks'
 import { emailFieldSchema, passwordFieldSchema, usernameFieldSchema } from '@/features/profile/schemas'
 import { EditableRow } from '@/features/profile/components/EditableRow'
 import { ConfirmDeleteAccountModal } from '@/features/profile/components/ConfirmDeleteAccountModal'
@@ -114,18 +115,33 @@ function AccountSection() {
 }
 
 function PreferencesSection() {
+    const { data: isNotificationsEnabled, isLoading } = useNotificationsPreference()
+    const { mutateAsync: setNotificationsEnabled, isPending } = useSetNotificationsPreference()
+
+    async function handleToggleNotifications(next: boolean) {
+        const granted = await setNotificationsEnabled(next)
+        if (next && !granted) {
+            Alert.alert(
+                'Notifications désactivées',
+                "Autorise les notifications pour Krokmo'vie dans les réglages de ton téléphone pour être prévenu des ajouts et notes de l'autre.",
+            )
+        }
+    }
+
     return (
         <SectionCard title="Préférences">
-            <Pressable
-                onPress={() => Alert.alert('Notifications', 'Bientôt disponible.')}
-                className="flex-row items-center justify-between py-3 active:opacity-60"
-            >
+            <View className="flex-row items-center justify-between py-3">
                 <View className="flex-row items-center gap-3">
                     <Bell size={20} color="#8E8E93" />
                     <Text className="text-[15px] font-medium text-content-primary">Notifications</Text>
                 </View>
-                <ChevronRight size={18} color="#8E8E93" />
-            </Pressable>
+                <Switch
+                    value={!!isNotificationsEnabled}
+                    onValueChange={handleToggleNotifications}
+                    disabled={isLoading || isPending}
+                    trackColor={{ true: '#409CFF', false: '#3A3A3C' }}
+                />
+            </View>
         </SectionCard>
     )
 }
