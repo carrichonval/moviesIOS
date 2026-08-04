@@ -4,6 +4,7 @@ import {
     getGenres,
     getPopularTitles,
     getRecentTitles,
+    getTitleDetails,
     getTitlesByGenre,
     getTopRatedTitles,
     searchTitles,
@@ -134,5 +135,15 @@ export function useTitlesByGenreInfinite(genreId: number, mediaType: MediaType, 
         initialPageParam: 1,
         getNextPageParam: (lastPage, allPages) => (allPages.length < lastPage.totalPages ? allPages.length + 1 : undefined),
         enabled: options?.enabled,
+    })
+}
+
+// --- Detail screen ---
+
+export function useTitleDetails(tmdbId: number, mediaType: MediaType) {
+    return useQuery({
+        queryKey: [ 'tmdb', 'details', tmdbId, mediaType ],
+        queryFn: () => getTitleDetails(tmdbId, mediaType),
+        enabled: Number.isFinite(tmdbId) && tmdbId > 0,
     })
 }

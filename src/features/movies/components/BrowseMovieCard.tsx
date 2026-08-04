@@ -7,6 +7,7 @@ import ContextMenu, {
     type ContextMenuAction,
     type ContextMenuOnPressNativeEvent,
 } from 'react-native-context-menu-view'
+import { router } from 'expo-router'
 import { Check, Heart, Star } from 'lucide-react-native'
 import type { TmdbBrowseItem } from '@/types/tmdb'
 import { useAuth } from '@/features/auth/AuthProvider'
@@ -35,7 +36,7 @@ const COVER_WIDTH = 110
 const COVER_ASPECT_RATIO = 3 / 2 // TMDB posters are 2:3 (width:height)
 
 const WISHLIST_LABEL = 'Liste de souhait'
-const RATING_VALUES = [ 1, 2, 3, 4, 5 ]
+export const RATING_VALUES = [ 1, 2, 3, 4, 5 ]
 
 // "Mine" (blue) vs "the other person's" (pink) rather than fixed names — works for
 // whichever of the two accounts is signed in, and for the second household account
@@ -43,8 +44,6 @@ const RATING_VALUES = [ 1, 2, 3, 4, 5 ]
 const MY_RATING_COLOR = '#409CFF'
 const PARTNER_RATING_COLOR = '#FF2D55'
 
-// Not tappable (short press) yet — search/browse is display-only until the detail screen
-// exists. Long-press already wires into the shared movie library though.
 export function BrowseMovieCard({
     item,
     width = COVER_WIDTH,
@@ -136,6 +135,11 @@ export function BrowseMovieCard({
         }
     }
 
+    function handlePress() {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+        router.push({ pathname: '/movie/[id]', params: { id: String(item.tmdbId), mediaType: item.mediaType } })
+    }
+
     const imageSource = useMemo(() => ({ uri: item.posterUrl ?? undefined }), [ item.posterUrl ])
     const height = width * COVER_ASPECT_RATIO
 
@@ -202,7 +206,7 @@ export function BrowseMovieCard({
                 borderRadius={COVER_RADIUS}
                 style={StyleSheet.absoluteFillObject}
             >
-                <Pressable onLongPress={() => {}} delayLongPress={400} style={StyleSheet.absoluteFillObject}>
+                <Pressable onPress={handlePress} onLongPress={() => {}} delayLongPress={400} style={StyleSheet.absoluteFillObject}>
                     <View className="overflow-hidden rounded-card bg-surface">
                         <Image
                             source={{ uri: item.posterUrl ?? undefined }}

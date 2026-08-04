@@ -32,3 +32,22 @@ export interface TmdbBrowsePage {
     items: TmdbBrowseItem[];
     totalPages: number;
 }
+
+export interface TmdbTitleDetails {
+    tmdbId: number;
+    mediaType: MediaType;
+    title: string;
+    posterUrl: string | null;
+    releaseDate: string | null;
+    rating: number | null;
+    voteCount: number | null;
+    overview: string | null;
+    genres: string[];
+    similar: TmdbBrowseItem[];
+    tagline: string | null;
+    /** Movies only. */
+    runtimeMinutes: number | null;
+    /** TV only. */
+    numberOfSeasons: number | null;
+    numberOfEpisodes: number | null;
+}

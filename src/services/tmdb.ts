@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import type { MediaType, TmdbBrowsePage, TmdbPagedResponse, TmdbRawResult } from '@/types/tmdb'
+import type { MediaType, TmdbBrowsePage, TmdbPagedResponse, TmdbRawResult, TmdbTitleDetails } from '@/types/tmdb'
 
 const TMDB_IMAGE_URL = 'https://image.tmdb.org/t/p/w342'
 
@@ -98,4 +98,37 @@ export async function getTitlesByGenre({ genreId, page = 1, mediaType = 'movie' 
         with_genres: genreId,
         sort_by: 'popularity.desc',
     })
+}
+
+interface RawTitleDetailsResponse extends TmdbRawResult {
+    overview: string | null;
+    genres: { id: number; name: string }[];
+    similar?: TmdbPagedResponse;
+    tagline?: string | null;
+    /** Movies only. */
+    runtime?: number | null;
+    /** TV only. */
+    number_of_seasons?: number | null;
+    number_of_episodes?: number | null;
+}
+
+// `append_to_response: 'similar'` bundles the recommendations row into this same request —
+// no second network round-trip needed for "Titres similaires". The detail endpoints already
+// return tagline/runtime/season count by default, on top of the fields the list endpoints share.
+export async function getTitleDetails(tmdbId: number, mediaType: MediaType = 'movie'): Promise<TmdbTitleDetails> {
+    const raw = await tmdbRequest<RawTitleDetailsResponse>(
+        mediaType === 'movie' ? `/movie/${tmdbId}` : `/tv/${tmdbId}`,
+        { append_to_response: 'similar' },
+    )
+
+    return {
+        ...mapTmdbResult(raw, mediaType),
+        overview: raw.overview || null,
+        genres: raw.genres.map((genre) => genre.name),
+        similar: (raw.similar?.results ?? []).map((item) => mapTmdbResult(item, mediaType)),
+        tagline: raw.tagline || null,
+        runtimeMinutes: mediaType === 'movie' ? (raw.runtime || null) : null,
+        numberOfSeasons: mediaType === 'tv' ? (raw.number_of_seasons ?? null) : null,
+        numberOfEpisodes: mediaType === 'tv' ? (raw.number_of_episodes ?? null) : null,
+    }
 }
