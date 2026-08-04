@@ -5,6 +5,7 @@ import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller'
 import { Bell, ChevronRight, LogOut } from 'lucide-react-native'
 import * as Haptics from 'expo-haptics'
+import { router } from 'expo-router'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { deleteAccount, signOut } from '@/features/auth/api'
 import { updateEmail, updatePassword } from '@/features/profile/api'
@@ -137,9 +138,18 @@ export default function ProfileScreen() {
     const [ isDeleting, setIsDeleting ] = useState(false)
     const [ isDeleteModalVisible, setIsDeleteModalVisible ] = useState(false)
 
-    function handleSignOut() {
+    async function handleSignOut() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-        signOut()
+        const { error } = await signOut()
+        if (error) {
+            Alert.alert('Erreur', 'Impossible de se déconnecter, réessaie.')
+            return
+        }
+        // `Stack.Protected` in app/_layout.tsx reacts to the session becoming null and should
+        // redirect on its own, but that redirect can silently not happen when the current
+        // screen is deep in nested tab history (this is where "Se déconnecter" lives) — an
+        // explicit `replace` here doesn't depend on that reactive guard actually firing.
+        router.replace('/login')
     }
 
     async function handleConfirmDelete() {
@@ -152,6 +162,7 @@ export default function ProfileScreen() {
             return
         }
         setIsDeleteModalVisible(false)
+        router.replace('/login')
     }
 
     const memberSince = session?.user.created_at
