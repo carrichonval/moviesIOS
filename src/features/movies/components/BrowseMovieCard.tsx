@@ -9,11 +9,25 @@ import ContextMenu, {
 } from 'react-native-context-menu-view'
 import { Check, Heart, Star } from 'lucide-react-native'
 import type { TmdbBrowseItem } from '@/types/tmdb'
-import { useLibraryQuery, useMarkAsViewed, useToggleWishlist } from '@/features/movies/api/library'
+import { useAuth } from '@/features/auth/AuthProvider'
+import { useLibraryQuery, useMarkAsViewed, useRateTitle, useToggleWishlist } from '@/features/movies/api/library'
 
 interface BrowseMovieCardProps {
     item: TmdbBrowseItem;
     width?: number;
+    /** Offer "Noter" in the long-press menu — off by default. Even when on, it only shows
+     * once the title has actually been watched (rating something you've never seen makes
+     * no sense), so search/browse cards never pass this and library cards still won't show
+     * it for wishlist-only, not-yet-watched entries. */
+    allowRating?: boolean;
+    /** Show the "already watched" checkmark badge — on by default (it's the whole point in
+     * search/browse: spot what you've already seen). Off on the library screen, where every
+     * card is already in the library and the badge would just be noise. */
+    showViewedBadge?: boolean;
+    /** Show the wishlist heart badge — on by default. Off on the library screen's "À voir"
+     * tab, where every card is already wishlisted by definition (still on by default in
+     * "Vu", where it means something: seen, but still wants a rewatch). */
+    showWishlistBadge?: boolean;
 }
 
 const COVER_RADIUS = 16
@@ -21,13 +35,28 @@ const COVER_WIDTH = 110
 const COVER_ASPECT_RATIO = 3 / 2 // TMDB posters are 2:3 (width:height)
 
 const WISHLIST_LABEL = 'Liste de souhait'
+const RATING_VALUES = [ 1, 2, 3, 4, 5 ]
+
+// "Mine" (blue) vs "the other person's" (pink) rather than fixed names — works for
+// whichever of the two accounts is signed in, and for the second household account
+// once it exists (see 0001_movies_schema.sql — rating is the one per-user field here).
+const MY_RATING_COLOR = '#409CFF'
+const PARTNER_RATING_COLOR = '#FF2D55'
 
 // Not tappable (short press) yet — search/browse is display-only until the detail screen
 // exists. Long-press already wires into the shared movie library though.
-export function BrowseMovieCard({ item, width = COVER_WIDTH }: BrowseMovieCardProps) {
+export function BrowseMovieCard({
+    item,
+    width = COVER_WIDTH,
+    allowRating = false,
+    showViewedBadge = true,
+    showWishlistBadge = true,
+}: BrowseMovieCardProps) {
+    const { session } = useAuth()
     const libraryQuery = useLibraryQuery()
     const toggleWishlist = useToggleWishlist()
     const markAsViewed = useMarkAsViewed()
+    const rateTitle = useRateTitle()
 
     const libraryEntry = libraryQuery.data?.find(
         (entry) => entry.tmdbId === item.tmdbId && entry.mediaType === item.mediaType,
@@ -36,8 +65,16 @@ export function BrowseMovieCard({ item, width = COVER_WIDTH }: BrowseMovieCardPr
     const hasViewed = (libraryEntry?.viewingsCount ?? 0) > 0
     const viewedLabel = hasViewed ? 'Revu' : 'Vu'
 
-    const contextMenuActions: ContextMenuAction[] = useMemo(
-        () => [
+    const myRating = libraryEntry?.ratings.find((r) => r.userId === session?.user.id)?.rating ?? null
+    const partnerRating = libraryEntry?.ratings.find((r) => r.userId !== session?.user.id)?.rating ?? null
+
+    // Rating a title you've never watched doesn't make sense, so the option only shows
+    // once there's at least one viewing — and only where the caller opted in at all
+    // (allowRating), which search/browse cards never do (see prop doc above).
+    const canRate = allowRating && hasViewed
+
+    const contextMenuActions: ContextMenuAction[] = useMemo(() => {
+        const actions: ContextMenuAction[] = [
             {
                 title: WISHLIST_LABEL,
                 systemIcon: isWishlist ? 'heart.fill' : 'heart',
@@ -48,9 +85,22 @@ export function BrowseMovieCard({ item, width = COVER_WIDTH }: BrowseMovieCardPr
                 systemIcon: 'checkmark.circle',
                 selected: hasViewed,
             },
-        ],
-        [ isWishlist, hasViewed, viewedLabel ],
-    )
+        ]
+
+        if (canRate) {
+            actions.push({
+                title: myRating ? `Ma note : ${myRating}` : 'Noter',
+                systemIcon: myRating ? 'star.fill' : 'star',
+                actions: RATING_VALUES.map((value) => ({
+                    title: `${value} ★`,
+                    systemIcon: value === myRating ? 'star.fill' : 'star',
+                    selected: value === myRating,
+                })),
+            })
+        }
+
+        return actions
+    }, [ isWishlist, hasViewed, viewedLabel, canRate, myRating ])
 
     function handleContextMenuPress(e: NativeSyntheticEvent<ContextMenuOnPressNativeEvent>) {
         const { name } = e.nativeEvent
@@ -70,6 +120,19 @@ export function BrowseMovieCard({ item, width = COVER_WIDTH }: BrowseMovieCardPr
                 onSuccess: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
                 onError: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error),
             })
+            return
+        }
+
+        const ratingMatch = RATING_VALUES.find((value) => `${value} ★` === name)
+        if (ratingMatch !== undefined) {
+            Haptics.selectionAsync()
+            rateTitle.mutate(
+                { item, rating: ratingMatch },
+                {
+                    onSuccess: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
+                    onError: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error),
+                },
+            )
         }
     }
 
@@ -81,14 +144,29 @@ export function BrowseMovieCard({ item, width = COVER_WIDTH }: BrowseMovieCardPr
     // wishlist (both can show at once: "seen, but we still want to rewatch it").
     const badges = (
         <>
-            {hasViewed ? (
+            {hasViewed && showViewedBadge ? (
                 <View className="h-6 w-6 items-center justify-center rounded-full bg-black/50">
                     <Check size={13} color="#30D158" />
                 </View>
             ) : null}
-            {isWishlist ? (
+            {isWishlist && showWishlistBadge ? (
                 <View className="h-6 w-6 items-center justify-center rounded-full bg-black/50">
                     <Heart size={12} color="#FF453A" fill="#FF453A" />
+                </View>
+            ) : null}
+        </>
+    )
+
+    const ratingBadges = (
+        <>
+            {myRating ? (
+                <View className="h-6 w-6 items-center justify-center rounded-full" style={{ backgroundColor: MY_RATING_COLOR }}>
+                    <Text className="text-[11px] font-bold text-white">{myRating}</Text>
+                </View>
+            ) : null}
+            {partnerRating ? (
+                <View className="h-6 w-6 items-center justify-center rounded-full" style={{ backgroundColor: PARTNER_RATING_COLOR }}>
+                    <Text className="text-[11px] font-bold text-white">{partnerRating}</Text>
                 </View>
             ) : null}
         </>
@@ -111,6 +189,7 @@ export function BrowseMovieCard({ item, width = COVER_WIDTH }: BrowseMovieCardPr
                         <Text className="text-[11px] font-semibold text-content-primary">{item.rating.toFixed(1)}</Text>
                     </View>
                 ) : null}
+                <View className="absolute bottom-2 right-2 flex-row items-center gap-1">{ratingBadges}</View>
             </View>
             {/* ContextMenu sits as a transparent touch layer above the image instead of
                 wrapping it — a second render of the same image, same idea as
@@ -140,6 +219,7 @@ export function BrowseMovieCard({ item, width = COVER_WIDTH }: BrowseMovieCardPr
                                 </Text>
                             </View>
                         ) : null}
+                        <View className="absolute bottom-2 right-2 flex-row items-center gap-1">{ratingBadges}</View>
                     </View>
                 </Pressable>
             </ContextMenu>

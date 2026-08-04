@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/features/auth/AuthProvider'
 import type { MediaType, TmdbBrowseItem } from '@/types/tmdb'
 
 // The `movies` schema isn't in src/types/database.ts (a stub scoped to `public`, see
@@ -23,8 +24,9 @@ interface LibraryEntryRow {
 interface LibraryQueryRow {
     id: string;
     is_wishlist: boolean;
-    titles: { id: string; tmdb_id: number; media_type: MediaType };
+    titles: { id: string; tmdb_id: number; media_type: MediaType; name: string; poster_url: string | null; release_date: string | null };
     viewings: { viewed_at: string }[];
+    ratings: { user_id: string; rating: number }[];
 }
 
 /** Shared "our list" state for a title — not per-user, see 0001_movies_schema.sql. */
@@ -33,15 +35,22 @@ export interface MovieLibraryEntry {
     titleId: string;
     tmdbId: number;
     mediaType: MediaType;
+    name: string;
+    posterUrl: string | null;
+    releaseDate: string | null;
     isWishlist: boolean;
     viewingsCount: number;
     lastViewedAt: string | null;
+    /** Personal, per-user (see 0001_movies_schema.sql) — the only non-shared field here. */
+    ratings: { userId: string; rating: number }[];
 }
 
 async function fetchLibrary(): Promise<MovieLibraryEntry[]> {
     const { data, error } = await moviesDb
         .from('library_entries')
-        .select('id, is_wishlist, titles(id, tmdb_id, media_type), viewings(viewed_at)')
+        .select(
+            'id, is_wishlist, titles(id, tmdb_id, media_type, name, poster_url, release_date), viewings(viewed_at), ratings(user_id, rating)',
+        )
 
     if (error) throw error
 
@@ -52,9 +61,13 @@ async function fetchLibrary(): Promise<MovieLibraryEntry[]> {
             titleId: row.titles.id,
             tmdbId: row.titles.tmdb_id,
             mediaType: row.titles.media_type,
+            name: row.titles.name,
+            posterUrl: row.titles.poster_url,
+            releaseDate: row.titles.release_date,
             isWishlist: row.is_wishlist,
             viewingsCount: row.viewings.length,
             lastViewedAt: viewedDates.length ? (viewedDates[ viewedDates.length - 1 ] ?? null) : null,
+            ratings: row.ratings.map((r) => ({ userId: r.user_id, rating: r.rating })),
         }
     })
 }
@@ -169,6 +182,31 @@ export function useMarkAsViewed() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: [ 'movie-library' ] })
             queryClient.invalidateQueries({ queryKey: [ 'movie-timeline' ] })
+        },
+    })
+}
+
+// Personal, 1-5 (see 0002_fix_ratings_scale.sql) — one row per (library_entry, user),
+// upserted so re-rating just overwrites your previous score instead of stacking rows.
+export function useRateTitle() {
+    const { session } = useAuth()
+    const queryClient = useQueryClient()
+
+    return useMutation({
+        mutationFn: async ({ item, rating }: { item: TmdbBrowseItem; rating: number }) => {
+            if (!session?.user.id) throw new Error('Not authenticated')
+            const entry = await ensureLibraryEntryForItem(item)
+
+            const { error } = await moviesDb
+                .from('ratings')
+                .upsert(
+                    { library_entry_id: entry.id, user_id: session.user.id, rating },
+                    { onConflict: 'library_entry_id,user_id' },
+                )
+            if (error) throw error
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [ 'movie-library' ] })
         },
     })
 }
