@@ -8,12 +8,14 @@ const MAX_EVENTS = 500
 
 const moviesDb = (supabase as any).schema('movies')
 
-type MovieEventType = 'wishlisted' | 'viewed'
+type MovieEventType = 'wishlisted' | 'viewed' | 'episode_watched'
 
 interface EventRow {
     id: string;
     event_type: MovieEventType;
     occurred_at: string;
+    season_number: number | null;
+    episode_number: number | null;
     library_entries: {
         id: string;
         titles: { tmdb_id: number; media_type: MediaType; name: string; poster_url: string | null };
@@ -26,6 +28,9 @@ export interface MovieActivityEvent {
     /** Only meaningful for `type: 'viewed'` — false for the first viewing of a title, true after. */
     isRewatch: boolean;
     occurredAt: string;
+    /** Only set for `type: 'episode_watched'`. */
+    seasonNumber: number | null;
+    episodeNumber: number | null;
     title: { tmdbId: number; mediaType: MediaType; name: string; posterUrl: string | null };
 }
 
@@ -38,7 +43,9 @@ export interface TimelineSection {
 async function fetchTimeline(): Promise<MovieActivityEvent[]> {
     const { data, error } = await moviesDb
         .from('events')
-        .select('id, event_type, occurred_at, library_entries(id, titles(tmdb_id, media_type, name, poster_url))')
+        .select(
+            'id, event_type, occurred_at, season_number, episode_number, library_entries(id, titles(tmdb_id, media_type, name, poster_url))',
+        )
         .order('occurred_at', { ascending: false })
         .limit(MAX_EVENTS)
 
@@ -60,6 +67,8 @@ async function fetchTimeline(): Promise<MovieActivityEvent[]> {
         type: row.event_type,
         isRewatch: row.event_type === 'viewed' && firstViewedEventId.get(row.library_entries.id) !== row.id,
         occurredAt: row.occurred_at,
+        seasonNumber: row.season_number,
+        episodeNumber: row.episode_number,
         title: {
             tmdbId: row.library_entries.titles.tmdb_id,
             mediaType: row.library_entries.titles.media_type,

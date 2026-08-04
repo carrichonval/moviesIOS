@@ -2,8 +2,10 @@ import { supabase } from '@/lib/supabase'
 import type {
     MediaType,
     TmdbBrowsePage,
+    TmdbEpisodeSummary,
     TmdbPagedResponse,
     TmdbRawResult,
+    TmdbSeasonDetails,
     TmdbSeasonSummary,
     TmdbTitleDetails,
 } from '@/types/tmdb'
@@ -158,5 +160,43 @@ export async function getTitleDetails(tmdbId: number, mediaType: MediaType = 'mo
         numberOfSeasons: mediaType === 'tv' ? (raw.number_of_seasons ?? null) : null,
         numberOfEpisodes: mediaType === 'tv' ? (raw.number_of_episodes ?? null) : null,
         seasons: (raw.seasons ?? []).map(mapSeason).sort((a, b) => a.seasonNumber - b.seasonNumber),
+    }
+}
+
+interface RawEpisode {
+    episode_number: number;
+    name: string;
+    still_path: string | null;
+    air_date: string | null;
+    overview: string | null;
+}
+
+interface RawSeasonDetailsResponse {
+    season_number: number;
+    name: string;
+    poster_path: string | null;
+    episodes: RawEpisode[];
+}
+
+function mapEpisode(raw: RawEpisode): TmdbEpisodeSummary {
+    return {
+        episodeNumber: raw.episode_number,
+        name: raw.name,
+        stillUrl: tmdbPosterUrl(raw.still_path),
+        airDate: raw.air_date,
+        overview: raw.overview || null,
+    }
+}
+
+// One request per season (TMDB has no "all episodes of a show" endpoint) — fetched on
+// demand when the user opens a season, not prefetched for every season on the show detail
+// screen.
+export async function getSeasonDetails(tvId: number, seasonNumber: number): Promise<TmdbSeasonDetails> {
+    const raw = await tmdbRequest<RawSeasonDetailsResponse>(`/tv/${tvId}/season/${seasonNumber}`)
+    return {
+        seasonNumber: raw.season_number,
+        name: raw.name,
+        posterUrl: tmdbPosterUrl(raw.poster_path),
+        episodes: (raw.episodes ?? []).map(mapEpisode).sort((a, b) => a.episodeNumber - b.episodeNumber),
     }
 }

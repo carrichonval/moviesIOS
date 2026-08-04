@@ -10,7 +10,13 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { BrowseMovieCard, RATING_VALUES } from '@/features/movies/components/BrowseMovieCard'
 import { MAEVA_RATING_COLOR, MAEVA_USER_ID, VALENTIN_RATING_COLOR, VALENTIN_USER_ID } from '@/constants/people'
 import { useAuth } from '@/features/auth/AuthProvider'
-import { useLibraryEntryLookup, useMarkAsViewed, useRateTitle, useToggleWishlist } from '@/features/movies/api/library'
+import {
+    useLibraryEntryLookup,
+    useMarkAsViewed,
+    useRateTitle,
+    useShowWatchesQuery,
+    useToggleWishlist,
+} from '@/features/movies/api/library'
 import { useTitleDetails } from '@/features/movies/hooks/useTmdbBrowse'
 import type { MediaType } from '@/types/tmdb'
 
@@ -80,10 +86,15 @@ export default function MovieDetailScreen() {
     const genres = details?.genres ?? []
     const seasons = details?.seasons ?? []
     const similar = details?.similar ?? []
+    const isMovie = resolvedMediaType === 'movie'
     const libraryEntry = libraryLookup.get(`${resolvedMediaType}-${tmdbId}`)
     const isWishlist = libraryEntry?.isWishlist ?? false
     const viewingsCount = libraryEntry?.viewingsCount ?? 0
-    const hasViewed = viewingsCount > 0
+    const episodesWatchedCount = libraryEntry?.episodesWatchedCount ?? 0
+    // Movies: at least one viewing. TV: derived from episode progress (`isWatched` in
+    // api/library.ts) — there's no single "mark as viewed" action for a show anymore, see
+    // the seasons list below.
+    const hasViewed = libraryEntry?.isWatched ?? false
     const myRating = libraryEntry?.ratings.find((r) => r.userId === session?.user.id)?.rating ?? null
     const myRatingColor = session?.user.id === MAEVA_USER_ID ? MAEVA_RATING_COLOR : VALENTIN_RATING_COLOR
     // Fixed by identity rather than "whoever isn't me", so the partner's row still shows
@@ -93,6 +104,35 @@ export default function MovieDetailScreen() {
     const partnerName = partnerUserId === MAEVA_USER_ID ? 'Maeva' : 'Valentin'
     const partnerRatingColor = partnerUserId === MAEVA_USER_ID ? MAEVA_RATING_COLOR : VALENTIN_RATING_COLOR
     const partnerRating = libraryEntry?.ratings.find((r) => r.userId === partnerUserId)?.rating ?? null
+
+    const showWatchesQuery = useShowWatchesQuery(libraryEntry?.libraryEntryId ?? null)
+    const seasonWatchedCounts = useMemo(() => {
+        const counts = new Map<number, number>()
+        for (const watch of showWatchesQuery.data ?? []) {
+            counts.set(watch.seasonNumber, (counts.get(watch.seasonNumber) ?? 0) + 1)
+        }
+        return counts
+    }, [ showWatchesQuery.data ])
+    // Prefer a season with genuine partial progress (started, not finished) — that's
+    // unambiguously "where you're at", regardless of listing order. TMDB numbers specials
+    // as season 0, which sorts before "Saison 1" — picking "first incomplete in order"
+    // would highlight an untouched specials season over an actually-in-progress season 1.
+    const currentSeasonNumber = useMemo(() => {
+        const inProgress = seasons.find((season) => {
+            const watched = seasonWatchedCounts.get(season.seasonNumber) ?? 0
+            return watched > 0 && watched < season.episodeCount
+        })
+        if (inProgress) return inProgress.seasonNumber
+
+        // Nothing started yet — point at the next season to watch, skipping specials
+        // (season 0), which aren't part of the main numbered watch order.
+        const nextUp = seasons.find((season) => {
+            if (season.seasonNumber === 0) return false
+            const watched = seasonWatchedCounts.get(season.seasonNumber) ?? 0
+            return watched < season.episodeCount
+        })
+        return nextUp?.seasonNumber ?? null
+    }, [ seasons, seasonWatchedCounts ])
 
     const releaseLabel = useMemo(() => formatReleaseDate(details?.releaseDate ?? null), [ details?.releaseDate ])
     const runtimeLabel = formatRuntime(details?.runtimeMinutes ?? null)
@@ -217,8 +257,10 @@ export default function MovieDetailScreen() {
 
                         {/* Info only, not tappable — the actual "mark as viewed" action is the
                             button below. Mixing "here's the state" and "tap to add a viewing"
-                            into one pill made the action look like a toggle it isn't. */}
-                        {hasViewed ? (
+                            into one pill made the action look like a toggle it isn't. Movies
+                            only — a TV show's progress badge is next to "Saisons" below,
+                            there's no single watched/unwatched flag for it anymore. */}
+                        {isMovie && hasViewed ? (
                             <View className="flex-row items-center gap-1.5 rounded-full border border-accent-light bg-accent-light/20 px-3 py-1.5">
                                 <Check size={14} color="#409CFF" />
                                 <Text className="text-[13px] font-medium text-accent-light">
@@ -226,19 +268,38 @@ export default function MovieDetailScreen() {
                                 </Text>
                             </View>
                         ) : null}
+                        {!isMovie && episodesWatchedCount > 0 ? (
+                            <View
+                                className={`flex-row items-center gap-1.5 rounded-full border px-3 py-1.5 ${
+                                    hasViewed ? 'border-accent-light bg-accent-light/20' : 'border-border-subtle bg-surface'
+                                }`}
+                            >
+                                <Check size={14} color={hasViewed ? '#409CFF' : '#EBEBF599'} />
+                                <Text
+                                    className={`text-[13px] font-medium ${
+                                        hasViewed ? 'text-accent-light' : 'text-content-secondary'
+                                    }`}
+                                >
+                                    {episodesWatchedCount}
+                                    {details.numberOfEpisodes ? `/${details.numberOfEpisodes}` : ''} épisodes
+                                </Text>
+                            </View>
+                        ) : null}
                     </Animated.View>
 
-                    <Animated.View entering={FadeInDown.delay(100).duration(300)} className="mt-3 px-5">
-                        <Pressable
-                            onPress={handleViewedPress}
-                            className="flex-row items-center justify-center gap-2 self-start rounded-2xl bg-accent px-4 py-2.5 active:opacity-70"
-                        >
-                            <Check size={16} color="#FFFFFF" />
-                            <Text className="text-[14px] font-semibold text-content-primary">
-                                {hasViewed ? 'Revu (+1)' : 'Marquer comme vu'}
-                            </Text>
-                        </Pressable>
-                    </Animated.View>
+                    {isMovie ? (
+                        <Animated.View entering={FadeInDown.delay(100).duration(300)} className="mt-3 px-5">
+                            <Pressable
+                                onPress={handleViewedPress}
+                                className="flex-row items-center justify-center gap-2 self-start rounded-2xl bg-accent px-4 py-2.5 active:opacity-70"
+                            >
+                                <Check size={16} color="#FFFFFF" />
+                                <Text className="text-[14px] font-semibold text-content-primary">
+                                    {hasViewed ? 'Revu (+1)' : 'Marquer comme vu'}
+                                </Text>
+                            </Pressable>
+                        </Animated.View>
+                    ) : null}
 
                     {hasViewed ? (
                         <Animated.View entering={FadeInDown.delay(120).duration(300)} className="mt-8 flex-row justify-between px-5">
@@ -280,9 +341,6 @@ export default function MovieDetailScreen() {
                         </Animated.View>
                     ) : null}
 
-                    {/* Display-only for now — episode-level tracking (progress bars, marking
-                        episodes watched) is a bigger, separate pass. This just shows what
-                        seasons exist. */}
                     {seasons.length > 0 ? (
                         <Animated.View entering={FadeInDown.delay(200).duration(300)} className="mt-8 gap-3">
                             <Text className="px-5 text-[17px] font-bold text-content-primary">Saisons</Text>
@@ -291,24 +349,54 @@ export default function MovieDetailScreen() {
                                 showsHorizontalScrollIndicator={false}
                                 contentContainerStyle={{ gap: 14, paddingHorizontal: 20 }}
                             >
-                                {seasons.map((season) => (
-                                    <View key={season.seasonNumber} style={{ width: SEASON_CARD_WIDTH }}>
-                                        <View className="overflow-hidden rounded-card bg-surface">
-                                            <Image
-                                                source={{ uri: (season.posterUrl ?? details.posterUrl) ?? undefined }}
-                                                style={{ width: SEASON_CARD_WIDTH, height: SEASON_CARD_WIDTH * COVER_ASPECT_RATIO }}
-                                                contentFit="cover"
-                                                transition={200}
-                                            />
-                                        </View>
-                                        <Text numberOfLines={1} className="mt-1.5 text-[13px] font-medium text-content-primary">
-                                            {season.name}
-                                        </Text>
-                                        <Text className="text-[11px] text-content-tertiary">
-                                            {season.episodeCount} épisode{season.episodeCount > 1 ? 's' : ''}
-                                        </Text>
-                                    </View>
-                                ))}
+                                {seasons.map((season) => {
+                                    const watchedCount = seasonWatchedCounts.get(season.seasonNumber) ?? 0
+                                    const isSeasonComplete = season.episodeCount > 0 && watchedCount >= season.episodeCount
+                                    const isCurrentSeason = season.seasonNumber === currentSeasonNumber
+
+                                    return (
+                                        <Pressable
+                                            key={season.seasonNumber}
+                                            onPress={() => {
+                                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                                                router.push({
+                                                    pathname: '/season/[id]',
+                                                    params: { id: String(tmdbId), seasonNumber: String(season.seasonNumber) },
+                                                })
+                                            }}
+                                            className="active:opacity-70"
+                                            style={{ width: SEASON_CARD_WIDTH }}
+                                        >
+                                            <View
+                                                className={`overflow-hidden rounded-card bg-surface ${
+                                                    isCurrentSeason ? 'border-2 border-accent-light' : ''
+                                                }`}
+                                            >
+                                                <Image
+                                                    source={{ uri: (season.posterUrl ?? details.posterUrl) ?? undefined }}
+                                                    style={{ width: SEASON_CARD_WIDTH, height: SEASON_CARD_WIDTH * COVER_ASPECT_RATIO }}
+                                                    contentFit="cover"
+                                                    transition={200}
+                                                />
+                                                {isSeasonComplete ? (
+                                                    <View className="absolute right-1.5 top-1.5 h-5 w-5 items-center justify-center rounded-full bg-black/60">
+                                                        <Check size={11} color="#30D158" />
+                                                    </View>
+                                                ) : null}
+                                            </View>
+                                            <Text numberOfLines={1} className="mt-1.5 text-[13px] font-medium text-content-primary">
+                                                {season.name}
+                                            </Text>
+                                            <Text
+                                                className={`text-[11px] ${
+                                                    isCurrentSeason ? 'font-medium text-accent-light' : 'text-content-tertiary'
+                                                }`}
+                                            >
+                                                {watchedCount}/{season.episodeCount} épisode{season.episodeCount > 1 ? 's' : ''}
+                                            </Text>
+                                        </Pressable>
+                                    )
+                                })}
                             </ScrollView>
                         </Animated.View>
                     ) : null}

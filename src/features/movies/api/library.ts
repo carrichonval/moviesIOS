@@ -25,8 +25,9 @@ interface LibraryQueryRow {
     id: string;
     is_wishlist: boolean;
     added_at: string;
-    titles: { id: string; tmdb_id: number; media_type: MediaType; name: string; poster_url: string | null; release_date: string | null };
+    titles: { id: string; tmdb_id: number; media_type: MediaType; name: string; poster_url: string | null; release_date: string | null; total_episodes: number | null };
     viewings: { viewed_at: string }[];
+    episode_watches: { watched_at: string }[];
     ratings: { user_id: string; rating: number }[];
 }
 
@@ -43,6 +44,18 @@ export interface MovieLibraryEntry {
     addedAt: string;
     viewingsCount: number;
     lastViewedAt: string | null;
+    /** TV only (0001_movies_schema.sql doesn't have this — see 0006_episode_watches.sql). */
+    totalEpisodes: number | null;
+    episodesWatchedCount: number;
+    /** "Watched" for library-tab purposes: movies use `viewingsCount`, TV shows use
+     * episode completion — except a show that has old-style viewings but no episode_watches
+     * yet (marked watched before per-episode tracking existed) stays considered watched
+     * until the user actually starts checking episodes on it, so shipping this feature
+     * doesn't silently move already-watched shows out of "Vu". */
+    isWatched: boolean;
+    /** TV only — some episodes checked, but not all of them yet. Movies have no partial
+     * state (a viewing is all-or-nothing), so this is always false for them. */
+    isInProgress: boolean;
     /** Personal, per-user (see 0001_movies_schema.sql) — the only non-shared field here. */
     ratings: { userId: string; rating: number }[];
 }
@@ -51,13 +64,23 @@ async function fetchLibrary(): Promise<MovieLibraryEntry[]> {
     const { data, error } = await moviesDb
         .from('library_entries')
         .select(
-            'id, is_wishlist, added_at, titles(id, tmdb_id, media_type, name, poster_url, release_date), viewings(viewed_at), ratings(user_id, rating)',
+            'id, is_wishlist, added_at, titles(id, tmdb_id, media_type, name, poster_url, release_date, total_episodes), viewings(viewed_at), episode_watches(watched_at), ratings(user_id, rating)',
         )
 
     if (error) throw error
 
     return (data as LibraryQueryRow[]).map((row) => {
         const viewedDates = row.viewings.map((v) => v.viewed_at).sort()
+        const episodeWatchedDates = row.episode_watches.map((w) => w.watched_at).sort()
+        const totalEpisodes = row.titles.total_episodes
+        const episodesWatchedCount = row.episode_watches.length
+        const hasEpisodeTracking = episodesWatchedCount > 0
+        const isWatched = row.titles.media_type === 'movie'
+            ? row.viewings.length > 0
+            : hasEpisodeTracking
+                ? totalEpisodes !== null && episodesWatchedCount >= totalEpisodes
+                : row.viewings.length > 0
+
         return {
             libraryEntryId: row.id,
             titleId: row.titles.id,
@@ -69,7 +92,13 @@ async function fetchLibrary(): Promise<MovieLibraryEntry[]> {
             isWishlist: row.is_wishlist,
             addedAt: row.added_at,
             viewingsCount: row.viewings.length,
-            lastViewedAt: viewedDates.length ? (viewedDates[ viewedDates.length - 1 ] ?? null) : null,
+            lastViewedAt: episodeWatchedDates.length
+                ? (episodeWatchedDates[ episodeWatchedDates.length - 1 ] ?? null)
+                : (viewedDates.length ? (viewedDates[ viewedDates.length - 1 ] ?? null) : null),
+            totalEpisodes,
+            episodesWatchedCount,
+            isWatched,
+            isInProgress: row.titles.media_type === 'tv' && hasEpisodeTracking && !isWatched,
             ratings: row.ratings.map((r) => ({ userId: r.user_id, rating: r.rating })),
         }
     })
@@ -103,7 +132,12 @@ export function useLibraryEntryLookup() {
 // row does nothing and PostgREST returns no row for `.select()` to read back, so
 // `.single()` blows up on every already-cached title. A plain (no-op on conflict) update
 // still touches the row, so RETURNING always has something to hand back.
-async function ensureTitle(item: TmdbBrowseItem): Promise<TitleRow> {
+//
+// `numberOfEpisodes` is only known once a caller has already fetched full TV details (the
+// show/season detail screens, via `TmdbTitleDetails`) — plain `TmdbBrowseItem` callers
+// (search/browse cards) don't have it, and omitting the key entirely (not passing `null`)
+// means the upsert leaves a previously-cached value alone instead of clobbering it.
+async function ensureTitle(item: TmdbBrowseItem & { numberOfEpisodes?: number | null }): Promise<TitleRow> {
     const { data, error } = await moviesDb
         .from('titles')
         .upsert(
@@ -113,6 +147,7 @@ async function ensureTitle(item: TmdbBrowseItem): Promise<TitleRow> {
                 name: item.title,
                 poster_url: item.posterUrl,
                 release_date: item.releaseDate,
+                ...(item.numberOfEpisodes != null ? { total_episodes: item.numberOfEpisodes } : {}),
             },
             { onConflict: 'tmdb_id,media_type' },
         )
@@ -134,7 +169,7 @@ async function ensureLibraryEntry(titleId: string): Promise<LibraryEntryRow> {
     return data as LibraryEntryRow
 }
 
-async function ensureLibraryEntryForItem(item: TmdbBrowseItem): Promise<LibraryEntryRow> {
+async function ensureLibraryEntryForItem(item: TmdbBrowseItem & { numberOfEpisodes?: number | null }): Promise<LibraryEntryRow> {
     const title = await ensureTitle(item)
     return ensureLibraryEntry(title.id)
 }
@@ -229,6 +264,148 @@ export function useRateTitle() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: [ 'movie-library' ] })
+        },
+    })
+}
+
+// Shared, like the rest of this schema — either person checking an episode marks it for
+// both (0006_episode_watches.sql). A season's watched state isn't part of `fetchLibrary`'s
+// per-title query (that only needs the total count, not which episodes) — fetched
+// separately, per season, only when the season screen is actually open.
+async function fetchEpisodeWatches(libraryEntryId: string, seasonNumber: number): Promise<Set<number>> {
+    const { data, error } = await moviesDb
+        .from('episode_watches')
+        .select('episode_number')
+        .eq('library_entry_id', libraryEntryId)
+        .eq('season_number', seasonNumber)
+
+    if (error) throw error
+    return new Set((data as { episode_number: number }[]).map((row) => row.episode_number))
+}
+
+// `libraryEntryId` is `null` until the title has ever been added to the library (wishlist,
+// rated, or a first episode checked) — nothing to fetch yet in that case, every episode
+// just renders unchecked.
+export function useSeasonWatchesQuery(libraryEntryId: string | null, seasonNumber: number) {
+    return useQuery({
+        queryKey: [ 'episode-watches', libraryEntryId, seasonNumber ],
+        queryFn: () => fetchEpisodeWatches(libraryEntryId as string, seasonNumber),
+        enabled: libraryEntryId !== null,
+    })
+}
+
+// Every checked episode across every season of a show — the show detail screen needs this
+// to mark which seasons are complete and which one to highlight as "current", which a
+// single season's worth of data (`useSeasonWatchesQuery`) can't answer.
+async function fetchShowWatches(libraryEntryId: string): Promise<{ seasonNumber: number; episodeNumber: number }[]> {
+    const { data, error } = await moviesDb
+        .from('episode_watches')
+        .select('season_number, episode_number')
+        .eq('library_entry_id', libraryEntryId)
+
+    if (error) throw error
+    return (data as { season_number: number; episode_number: number }[]).map((row) => ({
+        seasonNumber: row.season_number,
+        episodeNumber: row.episode_number,
+    }))
+}
+
+export function useShowWatchesQuery(libraryEntryId: string | null) {
+    return useQuery({
+        queryKey: [ 'show-episode-watches', libraryEntryId ],
+        queryFn: () => fetchShowWatches(libraryEntryId as string),
+        enabled: libraryEntryId !== null,
+    })
+}
+
+export function useToggleEpisodeWatched() {
+    const queryClient = useQueryClient()
+
+    return useMutation({
+        mutationFn: async ({
+            item,
+            seasonNumber,
+            episodeNumber,
+            watched,
+        }: {
+            item: TmdbBrowseItem & { numberOfEpisodes?: number | null };
+            seasonNumber: number;
+            episodeNumber: number;
+            watched: boolean;
+        }) => {
+            const entry = await ensureLibraryEntryForItem(item)
+
+            if (watched) {
+                const { error } = await moviesDb
+                    .from('episode_watches')
+                    .upsert(
+                        { library_entry_id: entry.id, season_number: seasonNumber, episode_number: episodeNumber },
+                        { onConflict: 'library_entry_id,season_number,episode_number' },
+                    )
+                if (error) throw error
+            } else {
+                const { error } = await moviesDb
+                    .from('episode_watches')
+                    .delete()
+                    .eq('library_entry_id', entry.id)
+                    .eq('season_number', seasonNumber)
+                    .eq('episode_number', episodeNumber)
+                if (error) throw error
+            }
+
+            return entry
+        },
+        onSuccess: (entry, variables) => {
+            queryClient.invalidateQueries({ queryKey: [ 'episode-watches', entry.id, variables.seasonNumber ] })
+            queryClient.invalidateQueries({ queryKey: [ 'show-episode-watches', entry.id ] })
+            queryClient.invalidateQueries({ queryKey: [ 'movie-library' ] })
+            // Only marking an episode (not un-marking) logs a timeline event — see
+            // 0008_episode_watched_trigger.sql.
+            if (variables.watched) {
+                queryClient.invalidateQueries({ queryKey: [ 'movie-timeline' ] })
+            }
+        },
+    })
+}
+
+// "Catch up" — marks several episodes of the same season watched in one go (e.g. checking
+// episode 8 offers to also check 1-7). One upsert, so the trigger still logs one timeline
+// event per episode (0008_episode_watched_trigger.sql fires per row), not a single
+// "watched episodes 1-8" event.
+export function useMarkEpisodesWatched() {
+    const queryClient = useQueryClient()
+
+    return useMutation({
+        mutationFn: async ({
+            item,
+            seasonNumber,
+            episodeNumbers,
+        }: {
+            item: TmdbBrowseItem & { numberOfEpisodes?: number | null };
+            seasonNumber: number;
+            episodeNumbers: number[];
+        }) => {
+            const entry = await ensureLibraryEntryForItem(item)
+
+            const { error } = await moviesDb
+                .from('episode_watches')
+                .upsert(
+                    episodeNumbers.map((episodeNumber) => ({
+                        library_entry_id: entry.id,
+                        season_number: seasonNumber,
+                        episode_number: episodeNumber,
+                    })),
+                    { onConflict: 'library_entry_id,season_number,episode_number' },
+                )
+            if (error) throw error
+
+            return entry
+        },
+        onSuccess: (entry, variables) => {
+            queryClient.invalidateQueries({ queryKey: [ 'episode-watches', entry.id, variables.seasonNumber ] })
+            queryClient.invalidateQueries({ queryKey: [ 'show-episode-watches', entry.id ] })
+            queryClient.invalidateQueries({ queryKey: [ 'movie-library' ] })
+            queryClient.invalidateQueries({ queryKey: [ 'movie-timeline' ] })
         },
     })
 }

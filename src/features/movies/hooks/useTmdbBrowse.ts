@@ -4,6 +4,7 @@ import {
     getGenres,
     getPopularTitles,
     getRecentTitles,
+    getSeasonDetails,
     getTitleDetails,
     getTitlesByGenre,
     getTopRatedTitles,
@@ -145,5 +146,13 @@ export function useTitleDetails(tmdbId: number, mediaType: MediaType) {
         queryKey: [ 'tmdb', 'details', tmdbId, mediaType ],
         queryFn: () => getTitleDetails(tmdbId, mediaType),
         enabled: Number.isFinite(tmdbId) && tmdbId > 0,
+    })
+}
+
+export function useSeasonDetails(tvId: number, seasonNumber: number) {
+    return useQuery({
+        queryKey: [ 'tmdb', 'season', tvId, seasonNumber ],
+        queryFn: () => getSeasonDetails(tvId, seasonNumber),
+        enabled: Number.isFinite(tvId) && tvId > 0 && Number.isFinite(seasonNumber),
     })
 }

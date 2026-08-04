@@ -8,7 +8,7 @@ import ContextMenu, {
     type ContextMenuOnPressNativeEvent,
 } from 'react-native-context-menu-view'
 import { router } from 'expo-router'
-import { Check, Heart } from 'lucide-react-native'
+import { Check, Heart, ListChecks } from 'lucide-react-native'
 import type { TmdbBrowseItem } from '@/types/tmdb'
 import { MAEVA_RATING_COLOR, MAEVA_USER_ID, VALENTIN_RATING_COLOR, VALENTIN_USER_ID } from '@/constants/people'
 import { useAuth } from '@/features/auth/AuthProvider'
@@ -44,6 +44,9 @@ interface BrowseMovieCardProps {
      * tab, where every card is already wishlisted by definition (still on by default in
      * "Vu", where it means something: seen, but still wants a rewatch). */
     showWishlistBadge?: boolean;
+    /** Show the "some episodes watched" badge (TV only) — on by default. Off on the library
+     * screen's "En cours" tab, where every card there already means that by definition. */
+    showInProgressBadge?: boolean;
     /** Show each person's rating (heart + number, bottom corners) — off by default. Only the
      * library screen turns this on; search/browse/genres/similar-titles rows are about
      * discovering something new, not reviewing what's already been rated. */
@@ -64,6 +67,7 @@ function BrowseMovieCardComponent({
     allowRating = false,
     showViewedBadge = true,
     showWishlistBadge = true,
+    showInProgressBadge = true,
     showRatingBadges = false,
 }: BrowseMovieCardProps) {
     const { session } = useAuth()
@@ -73,10 +77,14 @@ function BrowseMovieCardComponent({
     const rateTitle = useRateTitle()
 
     const isWishlist = libraryEntry?.isWishlist ?? false
-    const hasViewed = (libraryEntry?.viewingsCount ?? 0) > 0
-    // Not `selected: hasViewed` — this action always inserts another viewing (see
-    // `useMarkAsViewed`), it never un-marks anything, so showing it as an already-checked
-    // toggle item was misleading. Label instead makes the "+1" nature explicit.
+    // Movies: at least one viewing. TV: every episode checked (`isWatched` in
+    // api/library.ts) — tracked per-episode on the season screen, not from this card.
+    const hasViewed = libraryEntry?.isWatched ?? false
+    // TV shows don't get this action at all — "watched" is derived from episode progress,
+    // there's nothing sensible for a card long-press to increment. Not `selected: hasViewed`
+    // for movies — this action always inserts another viewing (see `useMarkAsViewed`), it
+    // never un-marks anything, so showing it as an already-checked toggle item was misleading.
+    const canMarkViewed = item.mediaType === 'movie'
     const viewedLabel = hasViewed ? 'Revu (+1)' : 'Marquer comme vu'
 
     const myRating = libraryEntry?.ratings.find((r) => r.userId === session?.user.id)?.rating ?? null
@@ -97,11 +105,14 @@ function BrowseMovieCardComponent({
                 systemIcon: isWishlist ? 'heart.fill' : 'heart',
                 selected: isWishlist,
             },
-            {
+        ]
+
+        if (canMarkViewed) {
+            actions.push({
                 title: viewedLabel,
                 systemIcon: hasViewed ? 'arrow.clockwise' : 'checkmark.circle',
-            },
-        ]
+            })
+        }
 
         if (canRate) {
             actions.push({
@@ -116,7 +127,7 @@ function BrowseMovieCardComponent({
         }
 
         return actions
-    }, [ isWishlist, hasViewed, viewedLabel, canRate, myRating ])
+    }, [ isWishlist, hasViewed, viewedLabel, canMarkViewed, canRate, myRating ])
 
     function handleContextMenuPress(e: NativeSyntheticEvent<ContextMenuOnPressNativeEvent>) {
         const { name } = e.nativeEvent
@@ -162,12 +173,18 @@ function BrowseMovieCardComponent({
 
     // Quick visual read of the shared library state without opening the long-press menu —
     // green check once it's been watched at least once, red heart while it's on the
-    // wishlist (both can show at once: "seen, but we still want to rewatch it").
+    // wishlist (both can show at once: "seen, but we still want to rewatch it"), orange
+    // list-checks while a series has some (not all) episodes checked.
     const badges = (
         <>
             {hasViewed && showViewedBadge ? (
                 <View className="h-6 w-6 items-center justify-center rounded-full bg-black/50">
                     <Check size={13} color="#30D158" />
+                </View>
+            ) : null}
+            {(libraryEntry?.isInProgress ?? false) && showInProgressBadge ? (
+                <View className="h-6 w-6 items-center justify-center rounded-full bg-black/50">
+                    <ListChecks size={12} color="#FF9F0A" />
                 </View>
             ) : null}
             {isWishlist && showWishlistBadge ? (
@@ -264,8 +281,10 @@ function arePropsEqual(prev: BrowseMovieCardProps, next: BrowseMovieCardProps) {
         prev.allowRating === next.allowRating &&
         prev.showViewedBadge === next.showViewedBadge &&
         prev.showWishlistBadge === next.showWishlistBadge &&
+        prev.showInProgressBadge === next.showInProgressBadge &&
         prev.libraryEntry?.isWishlist === next.libraryEntry?.isWishlist &&
-        prev.libraryEntry?.viewingsCount === next.libraryEntry?.viewingsCount &&
+        prev.libraryEntry?.isWatched === next.libraryEntry?.isWatched &&
+        prev.libraryEntry?.isInProgress === next.libraryEntry?.isInProgress &&
         ratingsKey(prev.libraryEntry) === ratingsKey(next.libraryEntry)
     )
 }

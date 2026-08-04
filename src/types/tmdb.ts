@@ -42,6 +42,22 @@ export interface TmdbSeasonSummary {
     airDate: string | null;
 }
 
+export interface TmdbEpisodeSummary {
+    episodeNumber: number;
+    name: string;
+    stillUrl: string | null;
+    airDate: string | null;
+    overview: string | null;
+}
+
+/** The season's own episode list — separate fetch from `TmdbSeasonSummary`, one per season. */
+export interface TmdbSeasonDetails {
+    seasonNumber: number;
+    name: string;
+    posterUrl: string | null;
+    episodes: TmdbEpisodeSummary[];
+}
+
 export interface TmdbTitleDetails {
     tmdbId: number;
     mediaType: MediaType;

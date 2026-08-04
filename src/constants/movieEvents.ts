@@ -1,4 +1,4 @@
-import { Eye, Heart, RotateCcw, type LucideIcon } from 'lucide-react-native'
+import { Eye, Heart, ListChecks, RotateCcw, type LucideIcon } from 'lucide-react-native'
 import type { MovieActivityEvent } from '@/features/movies/hooks/useMovieTimeline'
 
 interface EventDisplay {
@@ -11,6 +11,14 @@ interface EventDisplay {
 export function getMovieEventDisplay(event: MovieActivityEvent): EventDisplay {
     if (event.type === 'wishlisted') {
         return { label: 'Ajouté à la liste de souhait', icon: Heart, color: '#8E8E93' }
+    }
+
+    if (event.type === 'episode_watched') {
+        return {
+            label: `S${event.seasonNumber}E${event.episodeNumber} vu`,
+            icon: ListChecks,
+            color: '#FF9F0A',
+        }
     }
 
     return event.isRewatch

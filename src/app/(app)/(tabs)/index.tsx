@@ -13,7 +13,16 @@ const GRID_HORIZONTAL_PADDING = 10
 const GRID_GAP = 15
 const GRID_COLUMNS = 3
 
-type WatchedTab = 'vu' | 'a-voir'
+type WatchedTab = 'vu' | 'en-cours' | 'a-voir'
+
+// Only TV shows ever land here (a movie has no partial-progress state — see `isInProgress`
+// in api/library.ts), so this tab is empty until a series has some, but not all, of its
+// episodes checked.
+function matchesWatchedTab(entry: MovieLibraryEntry, tab: WatchedTab): boolean {
+    if (tab === 'vu') return entry.isWatched
+    if (tab === 'en-cours') return entry.isInProgress
+    return entry.isWishlist
+}
 type MediaFilter = 'tous' | MediaType
 
 const MEDIA_FILTERS: { key: MediaFilter; label: string }[] = [
@@ -60,14 +69,17 @@ export default function LibraryScreen() {
         setIsRefreshing(false)
     }
 
-    // "Vu" = has at least one viewing (includes rewatches). "À voir" = on the wishlist —
-    // independent of whether it's already been watched (e.g. "envie de le revoir"), so the
-    // two buckets can overlap and a title with neither flag appears in neither tab.
-    const vuCount = useMemo(() => library.filter((entry) => entry.viewingsCount > 0).length, [ library ])
+    // "Vu" = watched (movies: at least one viewing; TV: every episode checked). "En cours"
+    // = a series with some episodes checked but not all — never a movie. "À voir" = on the
+    // wishlist, independent of watched state (e.g. "envie de le revoir"). These three can
+    // overlap (a title with none of them appears in none of the tabs) — see
+    // `matchesWatchedTab` / `isWatched` / `isInProgress` in api/library.ts.
+    const vuCount = useMemo(() => library.filter((entry) => entry.isWatched).length, [ library ])
+    const enCoursCount = useMemo(() => library.filter((entry) => entry.isInProgress).length, [ library ])
     const aVoirCount = useMemo(() => library.filter((entry) => entry.isWishlist).length, [ library ])
 
     const mediaCounts = useMemo(() => {
-        const entries = library.filter((entry) => (watchedTab === 'vu' ? entry.viewingsCount > 0 : entry.isWishlist))
+        const entries = library.filter((entry) => matchesWatchedTab(entry, watchedTab))
         return {
             tous: entries.length,
             movie: entries.filter((entry) => entry.mediaType === 'movie').length,
@@ -76,7 +88,7 @@ export default function LibraryScreen() {
     }, [ library, watchedTab ])
 
     const watchedTabEntries = useMemo(
-        () => library.filter((entry) => (watchedTab === 'vu' ? entry.viewingsCount > 0 : entry.isWishlist)),
+        () => library.filter((entry) => matchesWatchedTab(entry, watchedTab)),
         [ library, watchedTab ],
     )
     const mediaFilteredEntries = useMemo(
@@ -96,12 +108,13 @@ export default function LibraryScreen() {
         [ mediaFilteredEntries, normalizedQuery ],
     )
 
-    // "Vu" sorts by when it was (last) watched, not when it was added — a title added
-    // ages ago but watched yesterday should still show up near the top. "À voir" has no
-    // viewing to sort by, so it falls back to most-recently-added, matching the old web app.
+    // "Vu"/"En cours" sort by when it was (last) watched/progressed, not when it was added —
+    // a title added ages ago but watched yesterday should still show up near the top.
+    // "À voir" has no viewing to sort by, so it falls back to most-recently-added, matching
+    // the old web app.
     const sortedEntries = useMemo(() => {
         const sorted = [ ...visibleEntries ]
-        if (watchedTab === 'vu') {
+        if (watchedTab === 'vu' || watchedTab === 'en-cours') {
             sorted.sort((a, b) => (b.lastViewedAt ?? '').localeCompare(a.lastViewedAt ?? ''))
         } else {
             sorted.sort((a, b) => b.addedAt.localeCompare(a.addedAt))
@@ -115,6 +128,7 @@ export default function LibraryScreen() {
     function getEmptyMessage() {
         if (normalizedQuery) return `Aucun résultat pour « ${searchQuery.trim()} »`
         if (watchedTab === 'vu') return "Rien de vu pour l'instant"
+        if (watchedTab === 'en-cours') return 'Aucune série en cours'
         return "Rien à voir pour l'instant"
     }
 
@@ -151,6 +165,26 @@ export default function LibraryScreen() {
                     </Text>
                 </Pressable>
                 <Pressable
+                    onPress={() => {
+                        setWatchedTab('en-cours')
+                        // Only series ever show up here, so a media filter left over from
+                        // another tab (e.g. "Films") would just filter everything out —
+                        // reset it rather than leave a confusing empty list.
+                        setMediaFilter('tous')
+                    }}
+                    className={`flex-1 items-center rounded-2xl border py-2.5 active:opacity-60 ${
+                        watchedTab === 'en-cours' ? 'border-accent-light bg-accent-light/20' : 'border-border-subtle bg-surface'
+                    }`}
+                >
+                    <Text
+                        className={`text-[14px] font-semibold ${
+                            watchedTab === 'en-cours' ? 'text-accent-light' : 'text-content-secondary'
+                        }`}
+                    >
+                        En cours ({enCoursCount})
+                    </Text>
+                </Pressable>
+                <Pressable
                     onPress={() => setWatchedTab('a-voir')}
                     className={`flex-1 items-center rounded-2xl border py-2.5 active:opacity-60 ${
                         watchedTab === 'a-voir' ? 'border-accent-light bg-accent-light/20' : 'border-border-subtle bg-surface'
@@ -162,24 +196,26 @@ export default function LibraryScreen() {
                 </Pressable>
             </View>
 
-            <View className="mb-4 flex-row gap-2 px-5">
-                {MEDIA_FILTERS.map((filter) => {
-                    const isActive = mediaFilter === filter.key
-                    return (
-                        <Pressable
-                            key={filter.key}
-                            onPress={() => setMediaFilter(filter.key)}
-                            className={`flex-row items-center gap-1 rounded-full border px-3 py-1.5 active:opacity-60 ${
-                                isActive ? 'border-accent-light bg-accent-light/20' : 'border-border-subtle bg-surface'
-                            }`}
-                        >
-                            <Text className={`text-[13px] font-medium ${isActive ? 'text-accent-light' : 'text-content-secondary'}`}>
-                                {filter.label} ({mediaCounts[ filter.key ]})
-                            </Text>
-                        </Pressable>
-                    )
-                })}
-            </View>
+            {watchedTab !== 'en-cours' ? (
+                <View className="mb-4 flex-row gap-2 px-5">
+                    {MEDIA_FILTERS.map((filter) => {
+                        const isActive = mediaFilter === filter.key
+                        return (
+                            <Pressable
+                                key={filter.key}
+                                onPress={() => setMediaFilter(filter.key)}
+                                className={`flex-row items-center gap-1 rounded-full border px-3 py-1.5 active:opacity-60 ${
+                                    isActive ? 'border-accent-light bg-accent-light/20' : 'border-border-subtle bg-surface'
+                                }`}
+                            >
+                                <Text className={`text-[13px] font-medium ${isActive ? 'text-accent-light' : 'text-content-secondary'}`}>
+                                    {filter.label} ({mediaCounts[ filter.key ]})
+                                </Text>
+                            </Pressable>
+                        )
+                    })}
+                </View>
+            ) : null}
 
             {libraryQuery.isLoading ? (
                 <LibraryGridSkeleton cardWidth={cardWidth} />
@@ -228,6 +264,7 @@ export default function LibraryScreen() {
                             allowRating
                             showViewedBadge={false}
                             showWishlistBadge={watchedTab !== 'a-voir'}
+                            showInProgressBadge={watchedTab !== 'en-cours'}
                             showRatingBadges
                         />
                     )}
