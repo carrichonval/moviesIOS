@@ -16,6 +16,7 @@ import type { MediaType } from '@/types/tmdb'
 const COVER_WIDTH = 148
 const COVER_ASPECT_RATIO = 3 / 2 // TMDB posters are 2:3 (width:height)
 const SIMILAR_CARD_WIDTH = 110
+const SEASON_CARD_WIDTH = 110
 
 function formatReleaseDate(iso: string | null) {
     if (!iso) return null
@@ -72,6 +73,12 @@ export default function MovieDetailScreen() {
     const rateTitle = useRateTitle()
 
     const details = detailsQuery.data
+    // Defends against a stale AsyncStorage-persisted cache entry from before a field
+    // existed on this shape (see queryPersister.ts's CACHE_BUSTER comment — this has
+    // already happened twice for array fields on this exact query).
+    const genres = details?.genres ?? []
+    const seasons = details?.seasons ?? []
+    const similar = details?.similar ?? []
     const libraryEntry = libraryQuery.data?.find(
         (entry) => entry.tmdbId === tmdbId && entry.mediaType === resolvedMediaType,
     )
@@ -174,9 +181,9 @@ export default function MovieDetailScreen() {
                                 </View>
                             ) : null}
 
-                            {details.genres.length > 0 ? (
+                            {genres.length > 0 ? (
                                 <View className="flex-row flex-wrap gap-1.5">
-                                    {details.genres.map((genre) => (
+                                    {genres.map((genre) => (
                                         <Chip key={genre} label={genre} />
                                     ))}
                                 </View>
@@ -245,7 +252,40 @@ export default function MovieDetailScreen() {
                         </Animated.View>
                     ) : null}
 
-                    {details.similar.length > 0 ? (
+                    {/* Display-only for now — episode-level tracking (progress bars, marking
+                        episodes watched) is a bigger, separate pass. This just shows what
+                        seasons exist. */}
+                    {seasons.length > 0 ? (
+                        <Animated.View entering={FadeInDown.delay(200).duration(300)} className="mt-8 gap-3">
+                            <Text className="px-5 text-[17px] font-bold text-content-primary">Saisons</Text>
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={{ gap: 14, paddingHorizontal: 20 }}
+                            >
+                                {seasons.map((season) => (
+                                    <View key={season.seasonNumber} style={{ width: SEASON_CARD_WIDTH }}>
+                                        <View className="overflow-hidden rounded-card bg-surface">
+                                            <Image
+                                                source={{ uri: (season.posterUrl ?? details.posterUrl) ?? undefined }}
+                                                style={{ width: SEASON_CARD_WIDTH, height: SEASON_CARD_WIDTH * COVER_ASPECT_RATIO }}
+                                                contentFit="cover"
+                                                transition={200}
+                                            />
+                                        </View>
+                                        <Text numberOfLines={1} className="mt-1.5 text-[13px] font-medium text-content-primary">
+                                            {season.name}
+                                        </Text>
+                                        <Text className="text-[11px] text-content-tertiary">
+                                            {season.episodeCount} épisode{season.episodeCount > 1 ? 's' : ''}
+                                        </Text>
+                                    </View>
+                                ))}
+                            </ScrollView>
+                        </Animated.View>
+                    ) : null}
+
+                    {similar.length > 0 ? (
                         <Animated.View entering={FadeInDown.delay(200).duration(300)} className="mt-8 gap-3">
                             <Text className="px-5 text-[17px] font-bold text-content-primary">Titres similaires</Text>
                             <ScrollView
@@ -253,7 +293,7 @@ export default function MovieDetailScreen() {
                                 showsHorizontalScrollIndicator={false}
                                 contentContainerStyle={{ gap: 14, paddingHorizontal: 20 }}
                             >
-                                {details.similar.map((item) => (
+                                {similar.map((item) => (
                                     <BrowseMovieCard key={`${item.mediaType}-${item.tmdbId}`} item={item} width={SIMILAR_CARD_WIDTH} />
                                 ))}
                             </ScrollView>

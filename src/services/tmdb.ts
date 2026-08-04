@@ -1,5 +1,12 @@
 import { supabase } from '@/lib/supabase'
-import type { MediaType, TmdbBrowsePage, TmdbPagedResponse, TmdbRawResult, TmdbTitleDetails } from '@/types/tmdb'
+import type {
+    MediaType,
+    TmdbBrowsePage,
+    TmdbPagedResponse,
+    TmdbRawResult,
+    TmdbSeasonSummary,
+    TmdbTitleDetails,
+} from '@/types/tmdb'
 
 const TMDB_IMAGE_URL = 'https://image.tmdb.org/t/p/w342'
 
@@ -100,6 +107,14 @@ export async function getTitlesByGenre({ genreId, page = 1, mediaType = 'movie' 
     })
 }
 
+interface RawSeason {
+    season_number: number;
+    name: string;
+    poster_path: string | null;
+    episode_count: number;
+    air_date: string | null;
+}
+
 interface RawTitleDetailsResponse extends TmdbRawResult {
     overview: string | null;
     genres: { id: number; name: string }[];
@@ -107,14 +122,26 @@ interface RawTitleDetailsResponse extends TmdbRawResult {
     tagline?: string | null;
     /** Movies only. */
     runtime?: number | null;
-    /** TV only. */
+    /** TV only — `seasons` is returned by the base /tv/{id} endpoint already, no
+     * append_to_response needed. */
     number_of_seasons?: number | null;
     number_of_episodes?: number | null;
+    seasons?: RawSeason[];
+}
+
+function mapSeason(raw: RawSeason): TmdbSeasonSummary {
+    return {
+        seasonNumber: raw.season_number,
+        name: raw.name,
+        posterUrl: tmdbPosterUrl(raw.poster_path),
+        episodeCount: raw.episode_count,
+        airDate: raw.air_date,
+    }
 }
 
 // `append_to_response: 'similar'` bundles the recommendations row into this same request —
 // no second network round-trip needed for "Titres similaires". The detail endpoints already
-// return tagline/runtime/season count by default, on top of the fields the list endpoints share.
+// return tagline/runtime/seasons by default, on top of the fields the list endpoints share.
 export async function getTitleDetails(tmdbId: number, mediaType: MediaType = 'movie'): Promise<TmdbTitleDetails> {
     const raw = await tmdbRequest<RawTitleDetailsResponse>(
         mediaType === 'movie' ? `/movie/${tmdbId}` : `/tv/${tmdbId}`,
@@ -130,5 +157,6 @@ export async function getTitleDetails(tmdbId: number, mediaType: MediaType = 'mo
         runtimeMinutes: mediaType === 'movie' ? (raw.runtime || null) : null,
         numberOfSeasons: mediaType === 'tv' ? (raw.number_of_seasons ?? null) : null,
         numberOfEpisodes: mediaType === 'tv' ? (raw.number_of_episodes ?? null) : null,
+        seasons: (raw.seasons ?? []).map(mapSeason).sort((a, b) => a.seasonNumber - b.seasonNumber),
     }
 }

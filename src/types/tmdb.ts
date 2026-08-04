@@ -33,6 +33,15 @@ export interface TmdbBrowsePage {
     totalPages: number;
 }
 
+/** TV only — a season's own summary, not its episode list (that's a later, separate fetch). */
+export interface TmdbSeasonSummary {
+    seasonNumber: number;
+    name: string;
+    posterUrl: string | null;
+    episodeCount: number;
+    airDate: string | null;
+}
+
 export interface TmdbTitleDetails {
     tmdbId: number;
     mediaType: MediaType;
@@ -50,4 +59,5 @@ export interface TmdbTitleDetails {
     /** TV only. */
     numberOfSeasons: number | null;
     numberOfEpisodes: number | null;
+    seasons: TmdbSeasonSummary[];
 }
