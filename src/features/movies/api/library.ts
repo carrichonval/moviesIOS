@@ -25,7 +25,7 @@ interface LibraryQueryRow {
     id: string;
     is_wishlist: boolean;
     added_at: string;
-    titles: { id: string; tmdb_id: number; media_type: MediaType; name: string; poster_url: string | null; release_date: string | null; total_episodes: number | null };
+    titles: { id: string; tmdb_id: number; media_type: MediaType; name: string; poster_url: string | null; release_date: string | null; total_episodes: number | null; genres: string[] | null };
     viewings: { viewed_at: string }[];
     episode_watches: { watched_at: string }[];
     ratings: { user_id: string; rating: number }[];
@@ -56,6 +56,8 @@ export interface MovieLibraryEntry {
     /** TV only — some episodes checked, but not all of them yet. Movies have no partial
      * state (a viewing is all-or-nothing), so this is always false for them. */
     isInProgress: boolean;
+    /** For the stats screen's genre breakdown — cached on `titles`, see 0001_movies_schema.sql. */
+    genres: string[];
     /** Personal, per-user (see 0001_movies_schema.sql) — the only non-shared field here. */
     ratings: { userId: string; rating: number }[];
 }
@@ -64,7 +66,7 @@ async function fetchLibrary(): Promise<MovieLibraryEntry[]> {
     const { data, error } = await moviesDb
         .from('library_entries')
         .select(
-            'id, is_wishlist, added_at, titles(id, tmdb_id, media_type, name, poster_url, release_date, total_episodes), viewings(viewed_at), episode_watches(watched_at), ratings(user_id, rating)',
+            'id, is_wishlist, added_at, titles(id, tmdb_id, media_type, name, poster_url, release_date, total_episodes, genres), viewings(viewed_at), episode_watches(watched_at), ratings(user_id, rating)',
         )
 
     if (error) throw error
@@ -99,6 +101,7 @@ async function fetchLibrary(): Promise<MovieLibraryEntry[]> {
             episodesWatchedCount,
             isWatched,
             isInProgress: row.titles.media_type === 'tv' && hasEpisodeTracking && !isWatched,
+            genres: row.titles.genres ?? [],
             ratings: row.ratings.map((r) => ({ userId: r.user_id, rating: r.rating })),
         }
     })
@@ -380,10 +383,16 @@ export function useMarkEpisodesWatched() {
             item,
             seasonNumber,
             episodeNumbers,
+            watchedAt,
         }: {
             item: TmdbBrowseItem & { numberOfEpisodes?: number | null };
             seasonNumber: number;
             episodeNumbers: number[];
+            /** Overrides the DB default (`now()`) — for backfilling a season you'd already
+             * seen before per-episode tracking existed, so it doesn't jump to the top of
+             * "Vu" as if you'd just watched it. Omit for genuine real-time catch-up
+             * (e.g. checking episode 8 also checks 1-7 you just watched today). */
+            watchedAt?: string;
         }) => {
             const entry = await ensureLibraryEntryForItem(item)
 
@@ -394,6 +403,7 @@ export function useMarkEpisodesWatched() {
                         library_entry_id: entry.id,
                         season_number: seasonNumber,
                         episode_number: episodeNumber,
+                        ...(watchedAt ? { watched_at: watchedAt } : {}),
                     })),
                     { onConflict: 'library_entry_id,season_number,episode_number' },
                 )
