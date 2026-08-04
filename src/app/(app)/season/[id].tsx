@@ -4,7 +4,7 @@ import { Image } from 'expo-image'
 import * as Haptics from 'expo-haptics'
 import { router, useLocalSearchParams } from 'expo-router'
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
-import { Check, ChevronLeft } from 'lucide-react-native'
+import { Check, CheckCheck, ChevronLeft } from 'lucide-react-native'
 import { Skeleton } from '@/components/ui/Skeleton'
 import {
     useLibraryEntryLookup,
@@ -152,6 +152,32 @@ export default function SeasonScreen() {
         )
     }
 
+    // Always neutral (dated on when the show was added, not "now") — for backfilling a
+    // season you'd already seen before per-episode tracking existed, so it doesn't jump to
+    // the top of "Vu" as if you'd just watched the whole thing today. Genuine real-time
+    // catch-up (episode by episode, or the "catch up to here" prompt above) still dates
+    // itself "now" — this button is specifically for "I know I finished this, just record
+    // it", not for actually watching it right now.
+    function handleMarkAllWatched() {
+        if (!details) return
+        const remaining = episodes.map((episode) => episode.episodeNumber).filter((number) => !watchedEpisodes.has(number))
+        if (remaining.length === 0) return
+
+        Haptics.selectionAsync()
+        markEpisodesWatched.mutate(
+            {
+                item: details,
+                seasonNumber: resolvedSeasonNumber,
+                episodeNumbers: remaining,
+                watchedAt: libraryEntry?.addedAt,
+            },
+            {
+                onSuccess: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
+                onError: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error),
+            },
+        )
+    }
+
     const isLoading = detailsQuery.isLoading || seasonQuery.isLoading
 
     return (
@@ -160,6 +186,15 @@ export default function SeasonScreen() {
                 <Pressable onPress={() => router.back()} hitSlop={8} className="active:opacity-60">
                     <ChevronLeft size={26} color="#FFFFFF" />
                 </Pressable>
+                {!isLoading && episodes.length > 0 && watchedCount < episodes.length ? (
+                    <Pressable
+                        onPress={handleMarkAllWatched}
+                        className="flex-row items-center gap-1.5 rounded-full border border-border-subtle bg-surface px-3 py-1.5 active:opacity-70"
+                    >
+                        <CheckCheck size={14} color="#409CFF" />
+                        <Text className="text-[13px] font-medium text-accent-light">Tout marquer vu</Text>
+                    </Pressable>
+                ) : null}
             </View>
 
             {isLoading ? (
