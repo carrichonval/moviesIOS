@@ -11,7 +11,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { queryClient } from '@/lib/queryClient';
 import { persistOptions } from '@/lib/queryPersister';
 import { AuthProvider, useAuth } from '@/features/auth/AuthProvider';
-import { useRequestNotificationPermissionOnLaunch } from '@/features/notifications/hooks';
+import { useClearBadgeOnLaunch, useRequestNotificationPermissionOnLaunch } from '@/features/notifications/hooks';
 import { useNotificationResponseHandler } from '@/features/notifications/useNotificationResponseHandler';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -23,6 +23,7 @@ function RootNavigator() {
   // project to scope them to the authenticated tree instead.
   useRequestNotificationPermissionOnLaunch();
   useNotificationResponseHandler();
+  useClearBadgeOnLaunch();
 
   useEffect(() => {
     if (!isLoading) SplashScreen.hideAsync();

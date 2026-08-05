@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Image } from 'expo-image'
@@ -96,7 +97,9 @@ export default function SeasonScreen() {
     const details = detailsQuery.data
     const season = seasonQuery.data
     const episodes = season?.episodes ?? []
-    const watchedEpisodes = watchesQuery.data ?? new Set<number>()
+    // `watchesQuery.data` is a plain array (see fetchEpisodeWatches's comment) — a `Set`
+    // built here, at render time, never touches the persisted cache.
+    const watchedEpisodes = useMemo(() => new Set(watchesQuery.data ?? []), [ watchesQuery.data ])
     const watchedCount = watchedEpisodes.size
 
     function markSingleEpisode(episodeNumber: number, watched: boolean) {

@@ -44,9 +44,15 @@ function toBrowseItem(entry: MovieLibraryEntry): TmdbBrowseItem {
 }
 
 function LibraryGridSkeleton({ cardWidth }: { cardWidth: number }) {
+    // Must match the real FlatList's `contentContainerStyle` padding exactly (see below) —
+    // `cardWidth` is computed against `GRID_HORIZONTAL_PADDING`, so a different padding
+    // here (this used to be a hardcoded `px-4`, i.e. 16px vs. the real 10px) leaves less
+    // room than the cards were sized for, dropping the 3rd column to the next row. That's
+    // what read as "the grid flickers from 2 columns to 3" on a slow first load — the
+    // skeleton and the real grid were laid out with two different padding values.
     return (
-        <View className="flex-row flex-wrap px-4" style={{ gap: GRID_GAP }}>
-            {Array.from({ length: 9 }).map((_, index) => (
+        <View className="flex-row flex-wrap" style={{ gap: GRID_GAP, paddingHorizontal: GRID_HORIZONTAL_PADDING }}>
+            {Array.from({ length: 12 }).map((_, index) => (
                 <Skeleton key={index} width={cardWidth} height={cardWidth * 1.5} rounded={16} />
             ))}
         </View>

@@ -43,3 +43,15 @@ export async function unregisterPushToken(): Promise<void> {
     const { error } = await moviesDb.from('push_tokens').delete().eq('expo_push_token', token)
     if (error) throw error
 }
+
+// Zeroes this device's server-side counter (notify_push increments it per push, see
+// supabase/migrations/0012_push_badge_accumulation.sql) so the next notification's badge
+// starts counting up from 0 again instead of continuing from whatever it was before the
+// user last "caught up" (app launch or tapping a notification — see the two call sites).
+export async function resetBadgeCount(): Promise<void> {
+    const token = await getExpoPushToken()
+    if (!token) return
+
+    const { error } = await moviesDb.from('push_tokens').update({ badge_count: 0 }).eq('expo_push_token', token)
+    if (error) throw error
+}

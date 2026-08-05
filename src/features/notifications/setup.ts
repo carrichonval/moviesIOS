@@ -7,6 +7,11 @@ Notifications.setNotificationHandler({
         shouldShowBanner: true,
         shouldShowList: true,
         shouldPlaySound: true,
-        shouldSetBadge: false,
+        // The push payload carries its own `badge` value (see notify_push in
+        // supabase/migrations/0012_push_badge_accumulation.sql) — this just lets the OS
+        // apply it instead of ignoring it. Clearing the badge on launch/tap needs the
+        // signed-in user (to reset the server-side counter too, see resetBadgeCount in
+        // api.ts) — that happens in hooks.ts's useClearBadgeOnLaunch, not here.
+        shouldSetBadge: true,
     }),
 })

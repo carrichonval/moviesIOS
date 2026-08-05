@@ -275,7 +275,14 @@ export function useRateTitle() {
 // both (0006_episode_watches.sql). A season's watched state isn't part of `fetchLibrary`'s
 // per-title query (that only needs the total count, not which episodes) — fetched
 // separately, per season, only when the season screen is actually open.
-async function fetchEpisodeWatches(libraryEntryId: string, seasonNumber: number): Promise<Set<number>> {
+//
+// Returns a plain array, not a `Set` — this result goes through the AsyncStorage-persisted
+// query cache (see queryPersister.ts), which round-trips through `JSON.stringify`/`parse`.
+// A `Set` has no enumerable own properties, so it serializes to `{}` and rehydrates as a
+// plain object with no `.has()` — surfaces as "watchedEpisodes.has is not a function" after
+// an app restart, even though the underlying data was written fine. Callers build their own
+// `Set` from this array at render time instead (see season/[id].tsx).
+async function fetchEpisodeWatches(libraryEntryId: string, seasonNumber: number): Promise<number[]> {
     const { data, error } = await moviesDb
         .from('episode_watches')
         .select('episode_number')
@@ -283,7 +290,7 @@ async function fetchEpisodeWatches(libraryEntryId: string, seasonNumber: number)
         .eq('season_number', seasonNumber)
 
     if (error) throw error
-    return new Set((data as { episode_number: number }[]).map((row) => row.episode_number))
+    return (data as { episode_number: number }[]).map((row) => row.episode_number)
 }
 
 // `libraryEntryId` is `null` until the title has ever been added to the library (wishlist,

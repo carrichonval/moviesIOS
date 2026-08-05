@@ -2,8 +2,15 @@ import { useEffect } from 'react'
 import { router } from 'expo-router'
 import * as Notifications from 'expo-notifications'
 import type { MediaType } from '@/types/tmdb'
+import { resetBadgeCount } from './api'
 
 function handleResponse(response: Notifications.NotificationResponse) {
+    // Tapping is "caught up" too, same as opening the app fresh (see hooks.ts's
+    // useClearBadgeOnLaunch) — clears both the OS badge and this device's server-side
+    // counter (resetBadgeCount identifies the device by its own push token, no userId needed).
+    Notifications.setBadgeCountAsync(0)
+    resetBadgeCount().catch(() => {})
+
     const data = response.notification.request.content.data as
         | { type?: string; tmdbId?: number; mediaType?: MediaType }
         | undefined

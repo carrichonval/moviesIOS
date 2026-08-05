@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react'
+import * as Notifications from 'expo-notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/features/auth/AuthProvider'
-import { registerPushToken, unregisterPushToken } from './api'
+import { registerPushToken, resetBadgeCount, unregisterPushToken } from './api'
 import { getNotificationPermissionStatus, requestNotificationPermission } from './permissions'
 import { getNotificationsEnabledPreference, setNotificationsEnabledPreference } from './preference'
 
@@ -73,4 +74,21 @@ export function useRequestNotificationPermissionOnLaunch() {
 
         run()
     }, [ userId, status, queryClient ])
+}
+
+// Opening the app counts as "caught up" — clears the OS badge immediately and zeroes this
+// device's server-side counter (see resetBadgeCount) so the next push starts counting from
+// 0 rather than continuing on top of whatever was already shown.
+export function useClearBadgeOnLaunch() {
+    const { session } = useAuth()
+    const userId = session?.user.id
+    const hasRunRef = useRef(false)
+
+    useEffect(() => {
+        if (!userId || hasRunRef.current) return
+        hasRunRef.current = true
+
+        Notifications.setBadgeCountAsync(0)
+        resetBadgeCount().catch(() => {})
+    }, [ userId ])
 }
