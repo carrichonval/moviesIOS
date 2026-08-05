@@ -59,18 +59,31 @@ export function useRequestNotificationPermissionOnLaunch() {
     const userId = session?.user.id
     const { data: status } = useNotificationPermissionStatus()
     const queryClient = useQueryClient()
-    const hasRequestedRef = useRef(false)
+    const hasRunRef = useRef(false)
 
     useEffect(() => {
-        if (!userId || status !== 'undetermined' || hasRequestedRef.current) return
-        hasRequestedRef.current = true
+        if (!userId || !status || hasRunRef.current) return
+        hasRunRef.current = true
 
         async function run() {
-            const granted = await requestNotificationPermission()
-            if (granted) await registerPushToken(userId as string)
-            await setNotificationsEnabledPreference(granted)
-            queryClient.setQueryData(NOTIFICATIONS_ENABLED_QUERY_KEY, granted)
-            queryClient.invalidateQueries({ queryKey: NOTIFICATION_PERMISSION_STATUS_QUERY_KEY })
+            if (status === 'undetermined') {
+                const granted = await requestNotificationPermission()
+                await setNotificationsEnabledPreference(granted)
+                queryClient.setQueryData(NOTIFICATIONS_ENABLED_QUERY_KEY, granted)
+                queryClient.invalidateQueries({ queryKey: NOTIFICATION_PERMISSION_STATUS_QUERY_KEY })
+                if (granted) await registerPushToken(userId as string)
+                return
+            }
+
+            // Permission was already decided in an earlier install/session (iOS never
+            // re-prompts once it has), so the block above never runs again — but that's
+            // also the only place the token used to get (re-)registered. Without this,
+            // switching which Supabase project the app points at (dev vs prod) or
+            // reinstalling never puts a fresh token in *this* backend's push_tokens,
+            // even though the OS permission is already granted. Upsert on the token
+            // itself (see registerPushToken), so calling it again every launch is a
+            // harmless no-op once it's already correct.
+            if (status === 'granted') await registerPushToken(userId as string)
         }
 
         run()
