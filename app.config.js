@@ -1,8 +1,17 @@
+// `npx expo run:ios --device` (local dev) never sets this, so it defaults to 'development'
+// — a different bundle identifier than the real app, so installing a dev build no longer
+// overwrites the TestFlight one on the same phone; they show up side by side. Only
+// `eas build --profile production` (see eas.json) sets APP_VARIANT=production, which keeps
+// the exact bundle identifier already registered with App Store Connect (ascAppId
+// 6797950214 in eas.json) — don't change that branch without checking there first.
+const APP_VARIANT = process.env.APP_VARIANT ?? 'development'
+const IS_PRODUCTION = APP_VARIANT === 'production'
+
 /** @type {import('expo/config').ExpoConfig} */
 module.exports = {
     expo: {
         // Display name shown under the home screen icon.
-        name: "Krokmo'vie",
+        name: IS_PRODUCTION ? "Krokmo'vie" : "Krokmo'vie (Dev)",
         // URL-safe identifier used by Expo/EAS to identify this project. Usually kebab-case of name.
         slug: 'krokmovie',
         version: '1.0.0',
@@ -11,12 +20,13 @@ module.exports = {
         userInterfaceStyle: 'dark',
         // Deep-link scheme (e.g. myapp://). Used for the Supabase email-confirmation callback via
         // Linking.createURL() in src/features/auth/api.ts and src/features/profile/api.ts — no
-        // other file needs to change when you rename this.
-        scheme: 'krokmovie',
+        // other file needs to change when you rename this. Suffixed for dev too, so a confirmation
+        // email opened while both builds are installed doesn't risk landing in the wrong one.
+        scheme: IS_PRODUCTION ? 'krokmovie' : 'krokmovie-dev',
         ios: {
             supportsTablet: true,
             // Reverse-DNS bundle identifier, must be unique per app (e.g. com.yourdomain.appname).
-            bundleIdentifier: 'com.carrichonval.krokmovie',
+            bundleIdentifier: IS_PRODUCTION ? 'com.carrichonval.krokmovie' : 'com.carrichonval.krokmovie.dev',
             config: {
                 usesNonExemptEncryption: false,
             },
@@ -30,7 +40,7 @@ module.exports = {
             },
             predictiveBackGestureEnabled: false,
             // Same identifier as ios.bundleIdentifier, Android convention (e.g. com.yourdomain.appname).
-            package: 'com.carrichonval.krokmovie',
+            package: IS_PRODUCTION ? 'com.carrichonval.krokmovie' : 'com.carrichonval.krokmovie.dev',
         },
         web: {
             favicon: './assets/favicon.png',

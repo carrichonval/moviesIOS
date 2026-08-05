@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { AppState } from 'react-native'
 import * as Notifications from 'expo-notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/features/auth/AuthProvider'
@@ -76,19 +77,31 @@ export function useRequestNotificationPermissionOnLaunch() {
     }, [ userId, status, queryClient ])
 }
 
-// Opening the app counts as "caught up" — clears the OS badge immediately and zeroes this
+// Coming to the foreground counts as "caught up" — clears the OS badge and zeroes this
 // device's server-side counter (see resetBadgeCount) so the next push starts counting from
-// 0 rather than continuing on top of whatever was already shown.
+// 0 rather than continuing on top of whatever was already shown. Reacts to every
+// foreground transition (AppState -> 'active'), not just the very first mount — a cold
+// launch already fires the effect once on mount, but bringing the app back from the
+// background (task switcher, not force-quit) never remounts this component, so relying on
+// a one-shot ref left the badge stuck until the app was fully killed and reopened.
 export function useClearBadgeOnLaunch() {
     const { session } = useAuth()
     const userId = session?.user.id
-    const hasRunRef = useRef(false)
 
     useEffect(() => {
-        if (!userId || hasRunRef.current) return
-        hasRunRef.current = true
+        if (!userId) return
 
-        Notifications.setBadgeCountAsync(0)
-        resetBadgeCount().catch(() => {})
+        function clearBadge() {
+            Notifications.setBadgeCountAsync(0)
+            resetBadgeCount().catch(() => {})
+        }
+
+        clearBadge()
+
+        const subscription = AppState.addEventListener('change', (nextState) => {
+            if (nextState === 'active') clearBadge()
+        })
+
+        return () => subscription.remove()
     }, [ userId ])
 }
