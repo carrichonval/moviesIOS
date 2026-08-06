@@ -32,6 +32,7 @@ function mapTmdbResult(raw: TmdbRawResult, mediaType: MediaType) {
         releaseDate: raw.release_date ?? raw.first_air_date ?? null,
         rating: raw.vote_average ? Math.round(raw.vote_average * 10) / 10 : null,
         voteCount: raw.vote_count ?? null,
+        genreIds: raw.genre_ids,
     }
 }
 
@@ -112,6 +113,23 @@ export async function getTitlesByGenre({ genreId, page = 1, mediaType = 'movie' 
     return fetchPage(mediaType === 'movie' ? '/discover/movie' : '/discover/tv', mediaType, {
         page,
         with_genres: genreId,
+        sort_by: 'popularity.desc',
+    })
+}
+
+interface GenresPageParams extends PageParams {
+    genreIds: number[];
+}
+
+// Separate from getTitlesByGenre (kept single-genre, used by genres.tsx/browse/[section].tsx)
+// rather than widening that one — this is "any of these genres" (TMDB's `|` separator is OR;
+// a plain comma would mean "all of these genres", the opposite of "not sure which one, show
+// me either"), a distinct enough meaning that it deserves its own function instead of an
+// overloaded parameter on the existing one.
+export async function getTitlesByGenres({ genreIds, page = 1, mediaType = 'movie' }: GenresPageParams): Promise<TmdbBrowsePage> {
+    return fetchPage(mediaType === 'movie' ? '/discover/movie' : '/discover/tv', mediaType, {
+        page,
+        with_genres: genreIds.join('|'),
         sort_by: 'popularity.desc',
     })
 }

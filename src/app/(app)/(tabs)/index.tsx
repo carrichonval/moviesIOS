@@ -2,7 +2,10 @@ import { useMemo, useState } from 'react'
 import { Dimensions, FlatList, Pressable, RefreshControl, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs'
-import { Search, SearchX, X } from 'lucide-react-native'
+import { router } from 'expo-router'
+import Animated, { FadeIn } from 'react-native-reanimated'
+import * as Haptics from 'expo-haptics'
+import { Search, SearchX, Shuffle, X } from 'lucide-react-native'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { BrowseMovieCard } from '@/features/movies/components/BrowseMovieCard'
 import { useLibraryQuery, type MovieLibraryEntry } from '@/features/movies/api/library'
@@ -276,6 +279,33 @@ export default function LibraryScreen() {
                     )}
                 />
             )}
+
+            {/* Same button/position as gameTracker's own shuffle FAB — only the destination
+                differs: gameTracker picks a random game immediately, here it opens the swipe
+                deck's source-picker screen first (wishlist vs découverte, optional genre). */}
+            <Animated.View
+                entering={FadeIn.delay(300).duration(400)}
+                className="absolute right-5"
+                style={{ bottom: tabBarHeight + 20 }}
+            >
+                <Pressable
+                    onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+                        router.push('/swipe')
+                    }}
+                    hitSlop={8}
+                    className="h-14 w-14 items-center justify-center rounded-full bg-accent active:opacity-80"
+                    style={{
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.3,
+                        shadowRadius: 8,
+                        elevation: 6,
+                    }}
+                >
+                    <Shuffle size={22} color="#FFFFFF" />
+                </Pressable>
+            </Animated.View>
         </SafeAreaView>
     )
 }

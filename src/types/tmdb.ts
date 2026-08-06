@@ -9,6 +9,10 @@ export interface TmdbRawResult {
     first_air_date?: string;
     vote_average: number;
     vote_count: number;
+    /** TMDB includes this on essentially every result-list endpoint (search, popular,
+     * discover, similar...) — genre *names* require a separate id->name lookup
+     * (see useGenres), so only the raw ids are captured here. */
+    genre_ids?: number[];
 }
 
 export interface TmdbPagedResponse {
@@ -26,6 +30,9 @@ export interface TmdbBrowseItem {
     releaseDate: string | null;
     rating: number | null;
     voteCount: number | null;
+    /** Optional — most cards don't display genres, only the swipe deck currently resolves
+     * these (via useGenres) into names to show on the card. */
+    genreIds?: number[];
 }
 
 export interface TmdbBrowsePage {
