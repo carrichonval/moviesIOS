@@ -130,6 +130,13 @@ interface RawWatchProvider {
     logo_path: string | null;
 }
 
+interface RawVideo {
+    key: string;
+    site: string;
+    type: string;
+    official?: boolean;
+}
+
 interface RawTitleDetailsResponse extends TmdbRawResult {
     overview: string | null;
     genres: { id: number; name: string }[];
@@ -146,6 +153,15 @@ interface RawTitleDetailsResponse extends TmdbRawResult {
     // only France is used (this app has no region selector). `flatrate` = subscription only,
     // on purpose — rent/buy aren't fetched (decided with the user).
     'watch/providers'?: { results?: Record<string, { flatrate?: RawWatchProvider[] }> };
+    videos?: { results?: RawVideo[] };
+}
+
+// Prefers the official YouTube trailer, falls back to any YouTube trailer, then to nothing
+// (no fallback to a non-trailer video — a teaser/clip isn't what "bande-annonce" promises).
+function pickTrailerUrl(videos: RawVideo[] | undefined): string | null {
+    const youtubeTrailers = (videos ?? []).filter((v) => v.site === 'YouTube' && v.type === 'Trailer')
+    const trailer = youtubeTrailers.find((v) => v.official) ?? youtubeTrailers[ 0 ]
+    return trailer ? `https://www.youtube.com/watch?v=${trailer.key}` : null
 }
 
 function mapSeason(raw: RawSeason): TmdbSeasonSummary {
@@ -158,14 +174,14 @@ function mapSeason(raw: RawSeason): TmdbSeasonSummary {
     }
 }
 
-// `append_to_response: 'similar,watch/providers'` bundles both the recommendations row and
-// streaming availability into this same request — no second network round-trip for either.
-// The detail endpoints already return tagline/runtime/seasons by default, on top of the
-// fields the list endpoints share.
+// `append_to_response: 'similar,watch/providers,videos'` bundles the recommendations row,
+// streaming availability, and trailer into this same request — no extra round-trip for any
+// of them. The detail endpoints already return tagline/runtime/seasons by default, on top
+// of the fields the list endpoints share.
 export async function getTitleDetails(tmdbId: number, mediaType: MediaType = 'movie'): Promise<TmdbTitleDetails> {
     const raw = await tmdbRequest<RawTitleDetailsResponse>(
         mediaType === 'movie' ? `/movie/${tmdbId}` : `/tv/${tmdbId}`,
-        { append_to_response: 'similar,watch/providers' },
+        { append_to_response: 'similar,watch/providers,videos' },
     )
 
     const watchProviders: TmdbWatchProvider[] = (raw[ 'watch/providers' ]?.results?.FR?.flatrate ?? []).map((p) => ({
@@ -185,6 +201,7 @@ export async function getTitleDetails(tmdbId: number, mediaType: MediaType = 'mo
         numberOfEpisodes: mediaType === 'tv' ? (raw.number_of_episodes ?? null) : null,
         seasons: (raw.seasons ?? []).map(mapSeason).sort((a, b) => a.seasonNumber - b.seasonNumber),
         watchProviders,
+        trailerUrl: pickTrailerUrl(raw.videos?.results),
     }
 }
 

@@ -1,11 +1,11 @@
 import { useMemo } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { Linking, Pressable, ScrollView, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Image } from 'expo-image'
 import * as Haptics from 'expo-haptics'
 import { router, useLocalSearchParams } from 'expo-router'
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
-import { Check, ChevronLeft, Heart, Star } from 'lucide-react-native'
+import { Check, ChevronLeft, ExternalLink, Heart, Star } from 'lucide-react-native'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { BrowseMovieCard, RATING_VALUES } from '@/features/movies/components/BrowseMovieCard'
 import { MAEVA_RATING_COLOR, MAEVA_USER_ID, VALENTIN_RATING_COLOR, VALENTIN_USER_ID } from '@/constants/people'
@@ -238,30 +238,30 @@ export default function MovieDetailScreen() {
                                     ))}
                                 </View>
                             ) : null}
+
+                            {watchProviders.length > 0 ? (
+                                <View className="flex-row flex-wrap gap-2">
+                                    {watchProviders.map((provider) => {
+                                        const isFavorite = favoriteProviderIds.has(provider.providerId)
+                                        return (
+                                            <View
+                                                key={provider.providerId}
+                                                className={`overflow-hidden rounded-xl bg-surface ${
+                                                    isFavorite ? 'border-2 border-[#FFD60A]' : ''
+                                                }`}
+                                            >
+                                                <Image
+                                                    source={{ uri: provider.logoUrl ?? undefined }}
+                                                    style={{ width: 32, height: 32 }}
+                                                    contentFit="cover"
+                                                />
+                                            </View>
+                                        )
+                                    })}
+                                </View>
+                            ) : null}
                         </View>
                     </Animated.View>
-
-                    {watchProviders.length > 0 ? (
-                        <Animated.View entering={FadeInDown.delay(60).duration(300)} className="mt-4 flex-row flex-wrap gap-2 px-5">
-                            {watchProviders.map((provider) => {
-                                const isFavorite = favoriteProviderIds.has(provider.providerId)
-                                return (
-                                    <View
-                                        key={provider.providerId}
-                                        className={`overflow-hidden rounded-xl bg-surface ${
-                                            isFavorite ? 'border-2 border-[#FFD60A]' : ''
-                                        }`}
-                                    >
-                                        <Image
-                                            source={{ uri: provider.logoUrl ?? undefined }}
-                                            style={{ width: 40, height: 40 }}
-                                            contentFit="cover"
-                                        />
-                                    </View>
-                                )
-                            })}
-                        </Animated.View>
-                    ) : null}
 
                     <Animated.View entering={FadeInDown.delay(80).duration(300)} className="mt-6 flex-row flex-wrap items-center gap-2 px-5">
                         <Pressable
@@ -356,6 +356,19 @@ export default function MovieDetailScreen() {
                                     ))}
                                 </View>
                             </View>
+                        </Animated.View>
+                    ) : null}
+
+                    {details.trailerUrl ? (
+                        <Animated.View entering={FadeInDown.delay(140).duration(300)} className="mt-8 gap-2 px-5">
+                            <Text className="text-[17px] font-bold text-content-primary">Bande-annonce</Text>
+                            <Pressable
+                                onPress={() => Linking.openURL(details.trailerUrl as string)}
+                                className="flex-row items-center justify-between rounded-2xl border border-border-subtle bg-surface px-4 py-3 active:opacity-60"
+                            >
+                                <Text className="text-[14px] font-medium text-content-primary">Voir sur YouTube</Text>
+                                <ExternalLink size={16} color="#EBEBF599" />
+                            </Pressable>
                         </Animated.View>
                     ) : null}
 

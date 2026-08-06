@@ -85,4 +85,6 @@ export interface TmdbTitleDetails {
     seasons: TmdbSeasonSummary[];
     /** Subscription platforms available in France — see TmdbWatchProvider. */
     watchProviders: TmdbWatchProvider[];
+    /** YouTube trailer link, if TMDB has one — null is common and fine, no fallback needed. */
+    trailerUrl: string | null;
 }
