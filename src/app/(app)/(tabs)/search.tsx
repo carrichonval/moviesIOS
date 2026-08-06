@@ -201,6 +201,19 @@ export default function SearchScreen() {
                         <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#409CFF" />
                     }
                 >
+                    <Animated.View entering={FadeInDown.delay(40).duration(400)} className="mb-6 px-5">
+                        <Pressable
+                            onPress={() => router.push('/genres')}
+                            className="flex-row items-center gap-3 rounded-2xl border border-border-subtle bg-surface px-4 py-3.5 active:opacity-70"
+                        >
+                            <Tags size={20} color="#409CFF" />
+                            <Text className="flex-1 text-[15px] font-semibold text-content-primary">
+                                Explorer par catégorie
+                            </Text>
+                            <ChevronRight size={18} color="#8E8E93" />
+                        </Pressable>
+                    </Animated.View>
+
                     <TitleRow
                         title="Populaires"
                         section="popular"
@@ -241,19 +254,6 @@ export default function SearchScreen() {
                         delay={260}
                         libraryLookup={libraryLookup}
                     />
-
-                    <Animated.View entering={FadeInDown.delay(320).duration(400)} className="px-5">
-                        <Pressable
-                            onPress={() => router.push('/genres')}
-                            className="flex-row items-center gap-3 rounded-2xl border border-border-subtle bg-surface px-4 py-3.5 active:opacity-70"
-                        >
-                            <Tags size={20} color="#409CFF" />
-                            <Text className="flex-1 text-[15px] font-semibold text-content-primary">
-                                Explorer par catégorie
-                            </Text>
-                            <ChevronRight size={18} color="#8E8E93" />
-                        </Pressable>
-                    </Animated.View>
                 </ScrollView>
             )}
         </SafeAreaView>

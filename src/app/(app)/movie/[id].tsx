@@ -1,11 +1,12 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Linking, Pressable, ScrollView, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Image } from 'expo-image'
 import * as Haptics from 'expo-haptics'
 import { router, useLocalSearchParams } from 'expo-router'
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
-import { Check, ChevronLeft, ExternalLink, Heart, Star } from 'lucide-react-native'
+import { Check, CheckCheck, ChevronLeft, ExternalLink, Heart, Star } from 'lucide-react-native'
+import { ConfettiBurst } from '@/components/ui/ConfettiBurst'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { BrowseMovieCard, RATING_VALUES } from '@/features/movies/components/BrowseMovieCard'
 import { MAEVA_RATING_COLOR, MAEVA_USER_ID, VALENTIN_RATING_COLOR, VALENTIN_USER_ID } from '@/constants/people'
@@ -13,6 +14,7 @@ import { useAuth } from '@/features/auth/AuthProvider'
 import {
     useLibraryEntryLookup,
     useMarkAsViewed,
+    useMarkEpisodesWatched,
     useRateTitle,
     useShowWatchesQuery,
     useToggleWishlist,
@@ -80,6 +82,8 @@ export default function MovieDetailScreen() {
     const toggleWishlist = useToggleWishlist()
     const markAsViewed = useMarkAsViewed()
     const rateTitle = useRateTitle()
+    const markEpisodesWatched = useMarkEpisodesWatched()
+    const [ showConfetti, setShowConfetti ] = useState(false)
 
     const details = detailsQuery.data
     // Defends against a stale AsyncStorage-persisted cache entry from before a field
@@ -136,6 +140,47 @@ export default function MovieDetailScreen() {
         })
         return nextUp?.seasonNumber ?? null
     }, [ seasons, seasonWatchedCounts ])
+
+    // Season 0 ("Épisodes spéciaux") is excluded on purpose, matching how `isWatched` is
+    // computed (library.ts): TMDB's own `numberOfEpisodes` aggregate already excludes
+    // specials, so counting them here would both overshoot that total (the "21/9" style
+    // badge bug) and never be necessary — a show validates as "vu" from its numbered
+    // seasons alone.
+    const totalWatchedEpisodes = (showWatchesQuery.data ?? []).filter((w) => w.seasonNumber !== 0).length
+    const totalEpisodes = details?.numberOfEpisodes ?? 0
+    const canMarkAllShowWatched = !isMovie && totalEpisodes > 0 && totalWatchedEpisodes < totalEpisodes
+
+    // "Je me souviens avoir vu cette série il y a longtemps" catch-up — one upsert per
+    // season covering every episode 1..episodeCount. episode_watches is unique on
+    // (library_entry_id, season_number, episode_number), so already-watched episodes just
+    // no-op instead of erroring; this doesn't need to know which ones those are, or fetch
+    // each season's full episode list (an extra request per season) just to find out.
+    // Neutral date (like the season screen's own "Tout marquer vu"), not "now" — this is
+    // backfilling something already finished, not watching it this instant. Specials
+    // (season 0) are skipped — not needed for the show to validate as watched (see above),
+    // and opening season 0 directly still lets you check them by hand if you want to.
+    function handleMarkAllShowWatched() {
+        if (!details || seasons.length === 0) return
+        Haptics.selectionAsync()
+
+        Promise.all(
+            seasons
+                .filter((season) => season.episodeCount > 0 && season.seasonNumber !== 0)
+                .map((season) =>
+                    markEpisodesWatched.mutateAsync({
+                        item: details,
+                        seasonNumber: season.seasonNumber,
+                        episodeNumbers: Array.from({ length: season.episodeCount }, (_, i) => i + 1),
+                        watchedAt: libraryEntry?.addedAt,
+                    }),
+                ),
+        )
+            .then(() => {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+                setShowConfetti(true)
+            })
+            .catch(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error))
+    }
 
     const releaseLabel = useMemo(() => formatReleaseDate(details?.releaseDate ?? null), [ details?.releaseDate ])
     const runtimeLabel = formatRuntime(details?.runtimeMinutes ?? null)
@@ -381,7 +426,18 @@ export default function MovieDetailScreen() {
 
                     {seasons.length > 0 ? (
                         <Animated.View entering={FadeInDown.delay(200).duration(300)} className="mt-8 gap-3">
-                            <Text className="px-5 text-[17px] font-bold text-content-primary">Saisons</Text>
+                            <View className="flex-row items-center justify-between px-5">
+                                <Text className="text-[17px] font-bold text-content-primary">Saisons</Text>
+                                {canMarkAllShowWatched ? (
+                                    <Pressable
+                                        onPress={handleMarkAllShowWatched}
+                                        className="flex-row items-center gap-1.5 rounded-full border border-border-subtle bg-surface px-3 py-1.5 active:opacity-70"
+                                    >
+                                        <CheckCheck size={14} color="#409CFF" />
+                                        <Text className="text-[13px] font-medium text-accent-light">Tout marquer vu</Text>
+                                    </Pressable>
+                                ) : null}
+                            </View>
                             <ScrollView
                                 horizontal
                                 showsHorizontalScrollIndicator={false}
@@ -460,6 +516,8 @@ export default function MovieDetailScreen() {
                     ) : null}
                 </ScrollView>
             )}
+
+            {showConfetti ? <ConfettiBurst onComplete={() => setShowConfetti(false)} /> : null}
         </SafeAreaView>
     )
 }

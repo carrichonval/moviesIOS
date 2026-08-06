@@ -272,7 +272,12 @@ export default function LibraryScreen() {
                             width={cardWidth}
                             allowRating
                             showViewedBadge={false}
-                            showWishlistBadge={watchedTab !== 'a-voir'}
+                            // Never in the library — every card here is already implied by
+                            // whichever tab it's in (Vu/En cours/À voir), and a "vu" title
+                            // that's still wishlisted (want to rewatch) doesn't need the
+                            // heart repeated on top of that. Only Recherche shows it, where
+                            // it actually adds information ("already on your list or not").
+                            showWishlistBadge={false}
                             showInProgressBadge={watchedTab !== 'en-cours'}
                             showRatingBadges
                         />

@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Image } from 'expo-image'
@@ -6,6 +6,7 @@ import * as Haptics from 'expo-haptics'
 import { router, useLocalSearchParams } from 'expo-router'
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
 import { Check, CheckCheck, ChevronLeft } from 'lucide-react-native'
+import { ConfettiBurst } from '@/components/ui/ConfettiBurst'
 import { Skeleton } from '@/components/ui/Skeleton'
 import {
     useLibraryEntryLookup,
@@ -101,6 +102,17 @@ export default function SeasonScreen() {
     // built here, at render time, never touches the persisted cache.
     const watchedEpisodes = useMemo(() => new Set(watchesQuery.data ?? []), [ watchesQuery.data ])
     const watchedCount = watchedEpisodes.size
+    const [ showConfetti, setShowConfetti ] = useState(false)
+
+    // Fires only on the action that actually flips the season from incomplete to complete
+    // — `newlyMarkedCount` is how many not-yet-watched episodes this specific action is
+    // about to mark, computed by each call site from its own "not yet watched" set, so this
+    // doesn't need to wait for the query to refetch to know the outcome.
+    function checkSeasonCompletion(newlyMarkedCount: number) {
+        if (episodes.length > 0 && watchedCount < episodes.length && watchedCount + newlyMarkedCount >= episodes.length) {
+            setShowConfetti(true)
+        }
+    }
 
     function markSingleEpisode(episodeNumber: number, watched: boolean) {
         if (!details) return
@@ -108,7 +120,10 @@ export default function SeasonScreen() {
         toggleEpisodeWatched.mutate(
             { item: details, seasonNumber: resolvedSeasonNumber, episodeNumber, watched },
             {
-                onSuccess: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
+                onSuccess: () => {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+                    if (watched) checkSeasonCompletion(1)
+                },
                 onError: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error),
             },
         )
@@ -142,10 +157,14 @@ export default function SeasonScreen() {
                     onPress: () => {
                         if (!details) return
                         Haptics.selectionAsync()
+                        const episodeNumbers = [ ...earlierUnwatched, episodeNumber ]
                         markEpisodesWatched.mutate(
-                            { item: details, seasonNumber: resolvedSeasonNumber, episodeNumbers: [ ...earlierUnwatched, episodeNumber ] },
+                            { item: details, seasonNumber: resolvedSeasonNumber, episodeNumbers },
                             {
-                                onSuccess: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
+                                onSuccess: () => {
+                                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+                                    checkSeasonCompletion(episodeNumbers.length)
+                                },
                                 onError: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error),
                             },
                         )
@@ -175,7 +194,10 @@ export default function SeasonScreen() {
                 watchedAt: libraryEntry?.addedAt,
             },
             {
-                onSuccess: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
+                onSuccess: () => {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+                    checkSeasonCompletion(remaining.length)
+                },
                 onError: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error),
             },
         )
@@ -233,6 +255,8 @@ export default function SeasonScreen() {
                     </Animated.View>
                 </ScrollView>
             )}
+
+            {showConfetti ? <ConfettiBurst onComplete={() => setShowConfetti(false)} /> : null}
         </SafeAreaView>
     )
 }

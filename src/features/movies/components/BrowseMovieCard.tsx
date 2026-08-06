@@ -1,5 +1,5 @@
 import { memo, useMemo } from 'react'
-import { Pressable, StyleSheet, Text, View, type NativeSyntheticEvent } from 'react-native'
+import { Alert, Pressable, StyleSheet, Text, View, type NativeSyntheticEvent } from 'react-native'
 import { Image } from 'expo-image'
 import * as Haptics from 'expo-haptics'
 import Animated, { FadeIn } from 'react-native-reanimated'
@@ -15,6 +15,7 @@ import { useAuth } from '@/features/auth/AuthProvider'
 import {
     useMarkAsViewed,
     useRateTitle,
+    useRemoveFromLibrary,
     useToggleWishlist,
     type MovieLibraryEntry,
 } from '@/features/movies/api/library'
@@ -58,6 +59,7 @@ const COVER_WIDTH = 110
 const COVER_ASPECT_RATIO = 3 / 2 // TMDB posters are 2:3 (width:height)
 
 const WISHLIST_LABEL = 'Liste de souhait'
+const REMOVE_LABEL = 'Retirer de la bibliothèque'
 export const RATING_VALUES = [ 1, 2, 3, 4, 5 ]
 
 function BrowseMovieCardComponent({
@@ -75,6 +77,7 @@ function BrowseMovieCardComponent({
     const toggleWishlist = useToggleWishlist()
     const markAsViewed = useMarkAsViewed()
     const rateTitle = useRateTitle()
+    const removeFromLibrary = useRemoveFromLibrary()
 
     const isWishlist = libraryEntry?.isWishlist ?? false
     // Movies: at least one viewing. TV: every episode checked (`isWatched` in
@@ -126,8 +129,19 @@ function BrowseMovieCardComponent({
             })
         }
 
+        // Only offered once the title is actually in the library — nothing to remove
+        // otherwise. There was previously no way to undo a mistaken add (wrong duplicate,
+        // wrong version of a show) short of editing the database by hand.
+        if (libraryEntry) {
+            actions.push({
+                title: REMOVE_LABEL,
+                systemIcon: 'trash',
+                destructive: true,
+            })
+        }
+
         return actions
-    }, [ isWishlist, hasViewed, viewedLabel, canMarkViewed, canRate, myRating ])
+    }, [ isWishlist, hasViewed, viewedLabel, canMarkViewed, canRate, myRating, libraryEntry ])
 
     function handleContextMenuPress(e: NativeSyntheticEvent<ContextMenuOnPressNativeEvent>) {
         const { name } = e.nativeEvent
@@ -147,6 +161,29 @@ function BrowseMovieCardComponent({
                 onSuccess: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
                 onError: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error),
             })
+            return
+        }
+
+        if (name === REMOVE_LABEL) {
+            if (!libraryEntry) return
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
+            Alert.alert(
+                'Retirer de la bibliothèque ?',
+                `« ${item.title} » sera retiré, avec son historique (vu, notes, épisodes cochés). Cette action est irréversible.`,
+                [
+                    { text: 'Annuler', style: 'cancel' },
+                    {
+                        text: 'Retirer',
+                        style: 'destructive',
+                        onPress: () => {
+                            removeFromLibrary.mutate(libraryEntry.libraryEntryId, {
+                                onSuccess: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
+                                onError: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error),
+                            })
+                        },
+                    },
+                ],
+            )
             return
         }
 

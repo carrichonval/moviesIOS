@@ -27,7 +27,7 @@ interface LibraryQueryRow {
     added_at: string;
     titles: { id: string; tmdb_id: number; media_type: MediaType; name: string; poster_url: string | null; release_date: string | null; total_episodes: number | null; genres: string[] | null };
     viewings: { viewed_at: string }[];
-    episode_watches: { watched_at: string }[];
+    episode_watches: { watched_at: string; season_number: number }[];
     ratings: { user_id: string; rating: number }[];
 }
 
@@ -66,16 +66,21 @@ async function fetchLibrary(): Promise<MovieLibraryEntry[]> {
     const { data, error } = await moviesDb
         .from('library_entries')
         .select(
-            'id, is_wishlist, added_at, titles(id, tmdb_id, media_type, name, poster_url, release_date, total_episodes, genres), viewings(viewed_at), episode_watches(watched_at), ratings(user_id, rating)',
+            'id, is_wishlist, added_at, titles(id, tmdb_id, media_type, name, poster_url, release_date, total_episodes, genres), viewings(viewed_at), episode_watches(watched_at, season_number), ratings(user_id, rating)',
         )
 
     if (error) throw error
 
     return (data as LibraryQueryRow[]).map((row) => {
         const viewedDates = row.viewings.map((v) => v.viewed_at).sort()
-        const episodeWatchedDates = row.episode_watches.map((w) => w.watched_at).sort()
+        // Season 0 ("Épisodes spéciaux") never counts here — `titles.total_episodes` is
+        // TMDB's own aggregate, which already excludes specials, so counting them here too
+        // would inflate this past that total (surfaced as a "21/9" style badge) without ever
+        // being required for `isWatched` to flip true.
+        const regularEpisodeWatches = row.episode_watches.filter((w) => w.season_number !== 0)
+        const episodeWatchedDates = regularEpisodeWatches.map((w) => w.watched_at).sort()
         const totalEpisodes = row.titles.total_episodes
-        const episodesWatchedCount = row.episode_watches.length
+        const episodesWatchedCount = regularEpisodeWatches.length
         const hasEpisodeTracking = episodesWatchedCount > 0
         const isWatched = row.titles.media_type === 'movie'
             ? row.viewings.length > 0
@@ -201,6 +206,25 @@ export function useToggleWishlist() {
             queryClient.invalidateQueries({ queryKey: [ 'movie-library' ] })
             // A wishlist toggle can log a 'wishlisted' event (see 0004_movies_events.sql's
             // trigger) — refresh the timeline too so it shows up without a manual pull-to-refresh.
+            queryClient.invalidateQueries({ queryKey: [ 'movie-timeline' ] })
+        },
+    })
+}
+
+// Deletes the library_entries row outright — viewings/ratings/episode_watches/events all
+// cascade (see their `on delete cascade` foreign keys in the migrations), no cleanup needed
+// beyond this one delete. Doesn't touch movies.titles (the TMDB cache row): harmless to
+// leave, and re-adding the same title later just reuses it via ensureTitle's upsert.
+export function useRemoveFromLibrary() {
+    const queryClient = useQueryClient()
+
+    return useMutation({
+        mutationFn: async (libraryEntryId: string) => {
+            const { error } = await moviesDb.from('library_entries').delete().eq('id', libraryEntryId)
+            if (error) throw error
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [ 'movie-library' ] })
             queryClient.invalidateQueries({ queryKey: [ 'movie-timeline' ] })
         },
     })
