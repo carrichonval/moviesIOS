@@ -5,12 +5,8 @@ import type { PersistQueryClientOptions } from '@tanstack/react-query-persist-cl
 // Bump this whenever a cached query's shape changes incompatibly — mismatches the buster
 // stamped in old persisted caches, so they're discarded instead of being fed to code that
 // no longer expects them.
-// Bumped: 'episode-watches' used to cache a `Set` (episode numbers), which serializes to
-// `{}` through this same AsyncStorage persister and rehydrates with no `.has()` — surfaced
-// as "watchedEpisodes.has is not a function" on relaunch even though the underlying data
-// was fine. Now caches a plain array instead (see fetchEpisodeWatches in api/library.ts);
-// this bump discards any already-corrupted `{}` sitting in a device's persisted cache.
-const CACHE_BUSTER = '8'
+// Bumped: TmdbTitleDetails gained `watchProviders`.
+const CACHE_BUSTER = '9'
 
 const PERSIST_MAX_AGE = 1000 * 60 * 60 * 24 * 7 // 7 days, matches queryClient.ts's gcTime
 

@@ -3,7 +3,7 @@ import { Alert, Pressable, Switch, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller'
-import { Bell, LogOut } from 'lucide-react-native'
+import { Bell, ChevronRight, LogOut, Tv } from 'lucide-react-native'
 import * as Haptics from 'expo-haptics'
 import { router } from 'expo-router'
 import { useAuth } from '@/features/auth/AuthProvider'
@@ -130,7 +130,7 @@ function PreferencesSection() {
 
     return (
         <SectionCard title="Préférences">
-            <View className="flex-row items-center justify-between py-3">
+            <View className="flex-row items-center justify-between border-b border-border-subtle py-3">
                 <View className="flex-row items-center gap-3">
                     <Bell size={20} color="#8E8E93" />
                     <Text className="text-[15px] font-medium text-content-primary">Notifications</Text>
@@ -142,6 +142,17 @@ function PreferencesSection() {
                     trackColor={{ true: '#409CFF', false: '#3A3A3C' }}
                 />
             </View>
+
+            <Pressable
+                onPress={() => router.push('/watch-providers')}
+                className="flex-row items-center justify-between py-3 active:opacity-60"
+            >
+                <View className="flex-row items-center gap-3">
+                    <Tv size={20} color="#8E8E93" />
+                    <Text className="text-[15px] font-medium text-content-primary">Plateformes favorites</Text>
+                </View>
+                <ChevronRight size={18} color="#8E8E93" />
+            </Pressable>
         </SectionCard>
     )
 }

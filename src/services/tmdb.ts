@@ -8,12 +8,19 @@ import type {
     TmdbSeasonDetails,
     TmdbSeasonSummary,
     TmdbTitleDetails,
+    TmdbWatchProvider,
 } from '@/types/tmdb'
 
 const TMDB_IMAGE_URL = 'https://image.tmdb.org/t/p/w342'
+// Provider logos are small icons, not posters — w92 is TMDB's recommended size for them.
+const TMDB_PROVIDER_LOGO_URL = 'https://image.tmdb.org/t/p/w92'
 
 function tmdbPosterUrl(posterPath: string | null): string | null {
     return posterPath ? `${TMDB_IMAGE_URL}${posterPath}` : null
+}
+
+function tmdbProviderLogoUrl(logoPath: string | null): string | null {
+    return logoPath ? `${TMDB_PROVIDER_LOGO_URL}${logoPath}` : null
 }
 
 function mapTmdbResult(raw: TmdbRawResult, mediaType: MediaType) {
@@ -117,6 +124,12 @@ interface RawSeason {
     air_date: string | null;
 }
 
+interface RawWatchProvider {
+    provider_id: number;
+    provider_name: string;
+    logo_path: string | null;
+}
+
 interface RawTitleDetailsResponse extends TmdbRawResult {
     overview: string | null;
     genres: { id: number; name: string }[];
@@ -129,6 +142,10 @@ interface RawTitleDetailsResponse extends TmdbRawResult {
     number_of_seasons?: number | null;
     number_of_episodes?: number | null;
     seasons?: RawSeason[];
+    // Key has a literal slash — TMDB's own field name, not a nested path. Keyed by country;
+    // only France is used (this app has no region selector). `flatrate` = subscription only,
+    // on purpose — rent/buy aren't fetched (decided with the user).
+    'watch/providers'?: { results?: Record<string, { flatrate?: RawWatchProvider[] }> };
 }
 
 function mapSeason(raw: RawSeason): TmdbSeasonSummary {
@@ -141,14 +158,21 @@ function mapSeason(raw: RawSeason): TmdbSeasonSummary {
     }
 }
 
-// `append_to_response: 'similar'` bundles the recommendations row into this same request —
-// no second network round-trip needed for "Titres similaires". The detail endpoints already
-// return tagline/runtime/seasons by default, on top of the fields the list endpoints share.
+// `append_to_response: 'similar,watch/providers'` bundles both the recommendations row and
+// streaming availability into this same request — no second network round-trip for either.
+// The detail endpoints already return tagline/runtime/seasons by default, on top of the
+// fields the list endpoints share.
 export async function getTitleDetails(tmdbId: number, mediaType: MediaType = 'movie'): Promise<TmdbTitleDetails> {
     const raw = await tmdbRequest<RawTitleDetailsResponse>(
         mediaType === 'movie' ? `/movie/${tmdbId}` : `/tv/${tmdbId}`,
-        { append_to_response: 'similar' },
+        { append_to_response: 'similar,watch/providers' },
     )
+
+    const watchProviders: TmdbWatchProvider[] = (raw[ 'watch/providers' ]?.results?.FR?.flatrate ?? []).map((p) => ({
+        providerId: p.provider_id,
+        name: p.provider_name,
+        logoUrl: tmdbProviderLogoUrl(p.logo_path),
+    }))
 
     return {
         ...mapTmdbResult(raw, mediaType),
@@ -160,6 +184,7 @@ export async function getTitleDetails(tmdbId: number, mediaType: MediaType = 'mo
         numberOfSeasons: mediaType === 'tv' ? (raw.number_of_seasons ?? null) : null,
         numberOfEpisodes: mediaType === 'tv' ? (raw.number_of_episodes ?? null) : null,
         seasons: (raw.seasons ?? []).map(mapSeason).sort((a, b) => a.seasonNumber - b.seasonNumber),
+        watchProviders,
     }
 }
 
@@ -199,4 +224,24 @@ export async function getSeasonDetails(tvId: number, seasonNumber: number): Prom
         posterUrl: tmdbPosterUrl(raw.poster_path),
         episodes: (raw.episodes ?? []).map(mapEpisode).sort((a, b) => a.episodeNumber - b.episodeNumber),
     }
+}
+
+interface RawWatchProviderCatalogResponse {
+    results?: RawWatchProvider[];
+}
+
+// The full catalog of subscription platforms available in France, independent of any one
+// title — for the "favorite platforms" settings screen, not the detail page (which uses
+// the per-title list bundled into getTitleDetails above). Movies' catalog is used for both
+// media types: virtually every French streaming service that carries movies also carries
+// shows, so a second /tv/... call here wouldn't add meaningfully different options.
+export async function getWatchProviderCatalog(): Promise<TmdbWatchProvider[]> {
+    const raw = await tmdbRequest<RawWatchProviderCatalogResponse>('/watch/providers/movie', { watch_region: 'FR' })
+    return (raw.results ?? [])
+        .map((p) => ({
+            providerId: p.provider_id,
+            name: p.provider_name,
+            logoUrl: tmdbProviderLogoUrl(p.logo_path),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name))
 }

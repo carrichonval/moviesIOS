@@ -17,6 +17,7 @@ import {
     useShowWatchesQuery,
     useToggleWishlist,
 } from '@/features/movies/api/library'
+import { useFavoriteProviderIds } from '@/features/movies/api/watchProviders'
 import { useTitleDetails } from '@/features/movies/hooks/useTmdbBrowse'
 import type { MediaType } from '@/types/tmdb'
 
@@ -75,6 +76,7 @@ export default function MovieDetailScreen() {
     const { session } = useAuth()
     const detailsQuery = useTitleDetails(tmdbId, resolvedMediaType)
     const libraryLookup = useLibraryEntryLookup()
+    const favoriteProviderIds = useFavoriteProviderIds()
     const toggleWishlist = useToggleWishlist()
     const markAsViewed = useMarkAsViewed()
     const rateTitle = useRateTitle()
@@ -86,6 +88,7 @@ export default function MovieDetailScreen() {
     const genres = details?.genres ?? []
     const seasons = details?.seasons ?? []
     const similar = details?.similar ?? []
+    const watchProviders = details?.watchProviders ?? []
     const isMovie = resolvedMediaType === 'movie'
     const libraryEntry = libraryLookup.get(`${resolvedMediaType}-${tmdbId}`)
     const isWishlist = libraryEntry?.isWishlist ?? false
@@ -237,6 +240,28 @@ export default function MovieDetailScreen() {
                             ) : null}
                         </View>
                     </Animated.View>
+
+                    {watchProviders.length > 0 ? (
+                        <Animated.View entering={FadeInDown.delay(60).duration(300)} className="mt-4 flex-row flex-wrap gap-2 px-5">
+                            {watchProviders.map((provider) => {
+                                const isFavorite = favoriteProviderIds.has(provider.providerId)
+                                return (
+                                    <View
+                                        key={provider.providerId}
+                                        className={`overflow-hidden rounded-xl bg-surface ${
+                                            isFavorite ? 'border-2 border-[#FFD60A]' : ''
+                                        }`}
+                                    >
+                                        <Image
+                                            source={{ uri: provider.logoUrl ?? undefined }}
+                                            style={{ width: 40, height: 40 }}
+                                            contentFit="cover"
+                                        />
+                                    </View>
+                                )
+                            })}
+                        </Animated.View>
+                    ) : null}
 
                     <Animated.View entering={FadeInDown.delay(80).duration(300)} className="mt-6 flex-row flex-wrap items-center gap-2 px-5">
                         <Pressable

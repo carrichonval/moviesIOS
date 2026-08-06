@@ -58,6 +58,13 @@ export interface TmdbSeasonDetails {
     episodes: TmdbEpisodeSummary[];
 }
 
+/** A single streaming platform — subscription ("flatrate") only, rent/buy aren't fetched. */
+export interface TmdbWatchProvider {
+    providerId: number;
+    name: string;
+    logoUrl: string | null;
+}
+
 export interface TmdbTitleDetails {
     tmdbId: number;
     mediaType: MediaType;
@@ -76,4 +83,6 @@ export interface TmdbTitleDetails {
     numberOfSeasons: number | null;
     numberOfEpisodes: number | null;
     seasons: TmdbSeasonSummary[];
+    /** Subscription platforms available in France — see TmdbWatchProvider. */
+    watchProviders: TmdbWatchProvider[];
 }

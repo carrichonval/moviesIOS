@@ -8,6 +8,7 @@ import {
     getTitleDetails,
     getTitlesByGenre,
     getTopRatedTitles,
+    getWatchProviderCatalog,
     searchTitles,
 } from '@/services/tmdb'
 import type { MediaType } from '@/types/tmdb'
@@ -154,5 +155,16 @@ export function useSeasonDetails(tvId: number, seasonNumber: number) {
         queryKey: [ 'tmdb', 'season', tvId, seasonNumber ],
         queryFn: () => getSeasonDetails(tvId, seasonNumber),
         enabled: Number.isFinite(tvId) && tvId > 0 && Number.isFinite(seasonNumber),
+    })
+}
+
+// The full France streaming-platform catalog, for the "favorite platforms" settings
+// screen — not tied to any one title, changes rarely, so a long staleTime avoids
+// re-fetching it every time the settings screen is opened.
+export function useWatchProviderCatalog() {
+    return useQuery({
+        queryKey: [ 'tmdb', 'watch-provider-catalog' ],
+        queryFn: getWatchProviderCatalog,
+        staleTime: 1000 * 60 * 60 * 24, // 1 day
     })
 }
