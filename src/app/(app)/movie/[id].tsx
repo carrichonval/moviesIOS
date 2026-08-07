@@ -5,12 +5,19 @@ import { Image } from 'expo-image'
 import * as Haptics from 'expo-haptics'
 import { router, useLocalSearchParams } from 'expo-router'
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
-import { Check, CheckCheck, ChevronLeft, ExternalLink, Heart, Star } from 'lucide-react-native'
+import { Check, CheckCheck, ChevronLeft, ExternalLink, Heart, Star, UserRound } from 'lucide-react-native'
 import { ConfettiBurst } from '@/components/ui/ConfettiBurst'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { BrowseMovieCard, RATING_VALUES } from '@/features/movies/components/BrowseMovieCard'
+import {
+    CARD_HEIGHT as FAVORITE_CHARACTER_HEIGHT,
+    CARD_RADIUS as FAVORITE_CHARACTER_RADIUS,
+    CARD_WIDTH as FAVORITE_CHARACTER_WIDTH,
+    FavoriteCharacterSheet,
+} from '@/features/movies/components/FavoriteCharacterSheet'
 import { MAEVA_RATING_COLOR, MAEVA_USER_ID, VALENTIN_RATING_COLOR, VALENTIN_USER_ID } from '@/constants/people'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { useFavoriteCharactersQuery, useSetFavoriteCharacter } from '@/features/movies/api/favoriteCharacters'
 import {
     useLibraryEntryLookup,
     useMarkAsViewed,
@@ -21,12 +28,14 @@ import {
 } from '@/features/movies/api/library'
 import { useFavoriteProviderIds } from '@/features/movies/api/watchProviders'
 import { useTitleDetails } from '@/features/movies/hooks/useTmdbBrowse'
-import type { MediaType } from '@/types/tmdb'
+import { useTvdbCharacters } from '@/features/movies/hooks/useTvdbCharacters'
+import type { MediaType, TitleCastMember } from '@/types/tmdb'
 
 const COVER_WIDTH = 148
 const COVER_ASPECT_RATIO = 3 / 2 // TMDB posters are 2:3 (width:height)
 const SIMILAR_CARD_WIDTH = 110
 const SEASON_CARD_WIDTH = 110
+const FAVORITE_CHARACTER_COLUMN_GAP = 16
 
 function formatReleaseDate(iso: string | null) {
     if (!iso) return null
@@ -111,6 +120,32 @@ export default function MovieDetailScreen() {
     const partnerName = partnerUserId === MAEVA_USER_ID ? 'Maeva' : 'Valentin'
     const partnerRatingColor = partnerUserId === MAEVA_USER_ID ? MAEVA_RATING_COLOR : VALENTIN_RATING_COLOR
     const partnerRating = libraryEntry?.ratings.find((r) => r.userId === partnerUserId)?.rating ?? null
+
+    // Which (at most 2) row is "mine" vs "the other" is still resolved by session id, not
+    // MAEVA_USER_ID/VALENTIN_USER_ID (decided with the user) — myName/partnerName above are
+    // only used for the column labels now, not for picking which row belongs to whom.
+    // TheTVDB only — no repli on TMDB's cast (real character art vs. voice-actor photos,
+    // decided with the user), so an empty result here just means an empty picker.
+    const tvdbCharactersQuery = useTvdbCharacters(resolvedMediaType, details?.tvdbId ?? null, details?.imdbId ?? null)
+    const castList = tvdbCharactersQuery.data ?? []
+    const favoriteCharactersQuery = useFavoriteCharactersQuery(libraryEntry?.libraryEntryId ?? null)
+    const setFavoriteCharacter = useSetFavoriteCharacter()
+    const [ isCharacterSheetVisible, setIsCharacterSheetVisible ] = useState(false)
+    const myFavoriteCharacter = favoriteCharactersQuery.data?.find((c) => c.userId === session?.user.id) ?? null
+    const otherFavoriteCharacter = favoriteCharactersQuery.data?.find((c) => c.userId !== session?.user.id) ?? null
+
+    function handleSelectFavoriteCharacter(character: TitleCastMember) {
+        if (!libraryEntry || !session?.user.id) return
+        Haptics.selectionAsync()
+        setFavoriteCharacter.mutate(
+            { libraryEntryId: libraryEntry.libraryEntryId, userId: session.user.id, character },
+            {
+                onSuccess: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
+                onError: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error),
+            },
+        )
+        setIsCharacterSheetVisible(false)
+    }
 
     const showWatchesQuery = useShowWatchesQuery(libraryEntry?.libraryEntryId ?? null)
     const seasonWatchedCounts = useMemo(() => {
@@ -372,8 +407,8 @@ export default function MovieDetailScreen() {
                     ) : null}
 
                     {hasViewed ? (
-                        <Animated.View entering={FadeInDown.delay(120).duration(300)} className="mt-8 flex-row justify-between px-5">
-                            <View className="gap-2">
+                        <Animated.View entering={FadeInDown.delay(120).duration(300)} className="mt-8 flex-row px-5" style={{ gap: FAVORITE_CHARACTER_COLUMN_GAP }}>
+                            <View className="flex-1 items-center gap-2">
                                 <Text className="text-[17px] font-bold text-content-primary">Ta note</Text>
                                 <View className="flex-row gap-1">
                                     {RATING_VALUES.map((value) => (
@@ -388,7 +423,7 @@ export default function MovieDetailScreen() {
                                 </View>
                             </View>
 
-                            <View className="gap-2">
+                            <View className="flex-1 items-center gap-2">
                                 <Text className="text-[17px] font-bold text-content-primary">Note de {partnerName}</Text>
                                 <View className="flex-row gap-1">
                                     {RATING_VALUES.map((value) => (
@@ -399,6 +434,69 @@ export default function MovieDetailScreen() {
                                             fill={partnerRating !== null && value <= partnerRating ? partnerRatingColor : 'transparent'}
                                         />
                                     ))}
+                                </View>
+                            </View>
+                        </Animated.View>
+                    ) : null}
+
+                    {hasViewed ? (
+                        <Animated.View entering={FadeInDown.delay(130).duration(300)} className="mt-8 gap-3 px-5">
+                            <View className="flex-row" style={{ gap: FAVORITE_CHARACTER_COLUMN_GAP }}>
+                                <Pressable
+                                    onPress={() => setIsCharacterSheetVisible(true)}
+                                    className="flex-1 items-center gap-2 active:opacity-70"
+                                >
+                                    <View
+                                        className="items-center justify-center overflow-hidden bg-surface"
+                                        style={{
+                                            width: FAVORITE_CHARACTER_WIDTH,
+                                            height: FAVORITE_CHARACTER_HEIGHT,
+                                            borderRadius: FAVORITE_CHARACTER_RADIUS,
+                                        }}
+                                    >
+                                        {myFavoriteCharacter?.profilePhotoUrl ? (
+                                            <Image
+                                                source={{ uri: myFavoriteCharacter.profilePhotoUrl }}
+                                                style={{ width: FAVORITE_CHARACTER_WIDTH, height: FAVORITE_CHARACTER_HEIGHT }}
+                                                contentFit="cover"
+                                            />
+                                        ) : (
+                                            <UserRound size={24} color="#EBEBF599" />
+                                        )}
+                                    </View>
+                                    <Text
+                                        numberOfLines={1}
+                                        className="text-center text-[12px] font-medium text-content-secondary"
+                                    >
+                                        {myFavoriteCharacter?.characterName ?? 'Choisir'}
+                                    </Text>
+                                </Pressable>
+
+                                <View className="flex-1 items-center gap-2">
+                                    <View
+                                        className="items-center justify-center overflow-hidden bg-surface"
+                                        style={{
+                                            width: FAVORITE_CHARACTER_WIDTH,
+                                            height: FAVORITE_CHARACTER_HEIGHT,
+                                            borderRadius: FAVORITE_CHARACTER_RADIUS,
+                                        }}
+                                    >
+                                        {otherFavoriteCharacter?.profilePhotoUrl ? (
+                                            <Image
+                                                source={{ uri: otherFavoriteCharacter.profilePhotoUrl }}
+                                                style={{ width: FAVORITE_CHARACTER_WIDTH, height: FAVORITE_CHARACTER_HEIGHT }}
+                                                contentFit="cover"
+                                            />
+                                        ) : (
+                                            <UserRound size={24} color="#EBEBF599" />
+                                        )}
+                                    </View>
+                                    <Text
+                                        numberOfLines={1}
+                                        className="text-center text-[12px] font-medium text-content-secondary"
+                                    >
+                                        {otherFavoriteCharacter?.characterName ?? '—'}
+                                    </Text>
                                 </View>
                             </View>
                         </Animated.View>
@@ -518,6 +616,13 @@ export default function MovieDetailScreen() {
             )}
 
             {showConfetti ? <ConfettiBurst onComplete={() => setShowConfetti(false)} /> : null}
+
+            <FavoriteCharacterSheet
+                visible={isCharacterSheetVisible}
+                cast={castList}
+                onSelect={handleSelectFavoriteCharacter}
+                onClose={() => setIsCharacterSheetVisible(false)}
+            />
         </SafeAreaView>
     )
 }

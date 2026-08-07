@@ -5,10 +5,8 @@ import type { PersistQueryClientOptions } from '@tanstack/react-query-persist-cl
 // Bump this whenever a cached query's shape changes incompatibly — mismatches the buster
 // stamped in old persisted caches, so they're discarded instead of being fed to code that
 // no longer expects them.
-// Bumped: MovieLibraryEntry.episodesWatchedCount now excludes season 0 (specials) — old
-// cached values could still include them, showing a stale-wrong "21/9"-style badge until
-// this forces a fresh fetch.
-const CACHE_BUSTER = '11'
+// Bumped: TmdbTitleDetails gained `imdbId` (movies' tvdbId resolution fallback).
+const CACHE_BUSTER = '14'
 
 const PERSIST_MAX_AGE = 1000 * 60 * 60 * 24 * 7 // 7 days, matches queryClient.ts's gcTime
 

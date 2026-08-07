@@ -72,6 +72,15 @@ export interface TmdbWatchProvider {
     logoUrl: string | null;
 }
 
+/** A title's character lineup — sourced from TheTVDB (real character artwork), not TMDB (see
+ * src/services/tvdb.ts). Top-billed only, see getTvdbCharacters's mapping. */
+export interface TitleCastMember {
+    personId: number;
+    name: string;
+    character: string;
+    profilePhotoUrl: string | null;
+}
+
 export interface TmdbTitleDetails {
     tmdbId: number;
     mediaType: MediaType;
@@ -94,4 +103,12 @@ export interface TmdbTitleDetails {
     watchProviders: TmdbWatchProvider[];
     /** YouTube trailer link, if TMDB has one — null is common and fine, no fallback needed. */
     trailerUrl: string | null;
+    /** TheTVDB id for this title, via TMDB's external_ids — TMDB only ever populates this for
+     * TV, never for movies (verified live). Used to fetch character artwork (see
+     * src/services/tvdb.ts), TMDB itself has no such data. */
+    tvdbId: number | null;
+    /** IMDB id, via TMDB's external_ids — always present when TMDB has one, for both movies
+     * and TV. Movies have no `tvdbId` from TMDB, so this is the fallback used to resolve
+     * TheTVDB's own id via its /search/remoteid endpoint (see src/services/tvdb.ts). */
+    imdbId: string | null;
 }

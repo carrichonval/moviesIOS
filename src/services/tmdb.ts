@@ -172,6 +172,10 @@ interface RawTitleDetailsResponse extends TmdbRawResult {
     // on purpose — rent/buy aren't fetched (decided with the user).
     'watch/providers'?: { results?: Record<string, { flatrate?: RawWatchProvider[] }> };
     videos?: { results?: RawVideo[] };
+    // TMDB's own cross-reference to TheTVDB, used to fetch character artwork (see
+    // src/services/tvdb.ts) — TMDB itself has no such artwork. `tvdb_id` is only ever present
+    // for TV (verified live) — `imdb_id` (present for both) is the fallback used for movies.
+    external_ids?: { tvdb_id?: number | null; imdb_id?: string | null };
 }
 
 // Prefers the official YouTube trailer, falls back to any YouTube trailer, then to nothing
@@ -192,14 +196,14 @@ function mapSeason(raw: RawSeason): TmdbSeasonSummary {
     }
 }
 
-// `append_to_response: 'similar,watch/providers,videos'` bundles the recommendations row,
-// streaming availability, and trailer into this same request — no extra round-trip for any
-// of them. The detail endpoints already return tagline/runtime/seasons by default, on top
-// of the fields the list endpoints share.
+// `append_to_response: 'similar,watch/providers,videos,external_ids'` bundles the
+// recommendations row, streaming availability, trailer, and TheTVDB cross-reference into this
+// same request — no extra round-trip for any of them. The detail endpoints already return
+// tagline/runtime/seasons by default, on top of the fields the list endpoints share.
 export async function getTitleDetails(tmdbId: number, mediaType: MediaType = 'movie'): Promise<TmdbTitleDetails> {
     const raw = await tmdbRequest<RawTitleDetailsResponse>(
         mediaType === 'movie' ? `/movie/${tmdbId}` : `/tv/${tmdbId}`,
-        { append_to_response: 'similar,watch/providers,videos' },
+        { append_to_response: 'similar,watch/providers,videos,external_ids' },
     )
 
     const watchProviders: TmdbWatchProvider[] = (raw[ 'watch/providers' ]?.results?.FR?.flatrate ?? []).map((p) => ({
@@ -220,6 +224,8 @@ export async function getTitleDetails(tmdbId: number, mediaType: MediaType = 'mo
         seasons: (raw.seasons ?? []).map(mapSeason).sort((a, b) => a.seasonNumber - b.seasonNumber),
         watchProviders,
         trailerUrl: pickTrailerUrl(raw.videos?.results),
+        tvdbId: raw.external_ids?.tvdb_id ?? null,
+        imdbId: raw.external_ids?.imdb_id ?? null,
     }
 }
 
