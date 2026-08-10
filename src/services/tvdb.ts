@@ -1,11 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import type { MediaType, TitleCastMember } from '@/types/tmdb'
 
-// Top-billed only — TheTVDB can return a long characters list per title, most of them
-// minor/background roles nobody would pick as a "favorite character". Same limit as the old
-// TMDB-based cast list this replaces.
-const MAIN_CAST_LIMIT = 12
-
 async function tvdbRequest<T>(path: string, params?: Record<string, string | number>): Promise<T> {
     const { data, error } = await supabase.functions.invoke('tvdb', { body: { path, params } })
     if (error) throw new Error(`[tvdb] ${path} failed: ${error.message}`)
@@ -51,11 +46,27 @@ async function resolveTvdbId(imdbId: string, mediaType: MediaType): Promise<numb
     }
 }
 
-// Real character artwork only, never a repli on TheTVDB's own `personImgURL` (the actor's
-// photo) — decided with the user: a title with no illustrated characters shows an empty
-// picker rather than voice-cast photos, which defeats the whole point of using TheTVDB over
-// TMDB here. `peopleType` filters out crew entries (directors, guests) that aren't characters
-// at all; `sort` is TheTVDB's own billing order, same role as TMDB's `order`.
+function toTitleCastMember(character: RawTvdbCharacter, photoUrl: string | null): TitleCastMember {
+    return {
+        personId: character.peopleId,
+        name: character.personName,
+        character: character.name,
+        profilePhotoUrl: photoUrl,
+    }
+}
+
+// `peopleType` filters out crew entries (directors, guests) that aren't characters at all. No
+// top-N cap — the user wants every character available, not just the leads; `sort` (TheTVDB's
+// own billing order) just orders them, doesn't trim the list.
+//
+// Illustrated character art (`image`) is preferred whenever a title has any — verified live on
+// a sample of the real library: animated/heavily-fan-followed titles (Digital Circus,
+// Spider-Verse, Saw) are richly illustrated, but most live-action movies have none at all
+// (TheTVDB's character art is community-contributed and sparse there). For a title with zero
+// illustrated characters, repli on `personImgURL` (the actor's own photo, also from TheTVDB) —
+// decided with the user: an empty picker for most of the library was worse than showing actor
+// photos on titles that will never get illustrated art. This is all-or-nothing per title, never
+// a per-character mix of art and photos within the same list.
 export async function getTvdbCharacters(
     mediaType: MediaType,
     ids: { tvdbId: number | null; imdbId: string | null },
@@ -67,16 +78,17 @@ export async function getTvdbCharacters(
         const response = await tvdbRequest<RawTvdbExtendedResponse>(
             mediaType === 'movie' ? `/movies/${tvdbId}/extended` : `/series/${tvdbId}/extended`,
         )
-        return (response.data.characters ?? [])
-            .filter((character) => character.peopleType === 'Actor' && !!character.image)
+        const actors = (response.data.characters ?? [])
+            .filter((character) => character.peopleType === 'Actor')
             .sort((a, b) => a.sort - b.sort)
-            .slice(0, MAIN_CAST_LIMIT)
-            .map((character) => ({
-                personId: character.peopleId,
-                name: character.personName,
-                character: character.name,
-                profilePhotoUrl: character.image,
-            }))
+
+        const illustrated = actors.filter((character) => !!character.image)
+        if (illustrated.length > 0) {
+            return illustrated.map((character) => toTitleCastMember(character, character.image))
+        }
+        return actors
+            .filter((character) => !!character.personImgURL)
+            .map((character) => toTitleCastMember(character, character.personImgURL))
     } catch {
         // No tvdb_id match, title absent from TheTVDB, or a transient failure — never let this
         // break the detail page, just show no character picks for this title.

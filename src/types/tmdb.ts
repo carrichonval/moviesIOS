@@ -72,8 +72,8 @@ export interface TmdbWatchProvider {
     logoUrl: string | null;
 }
 
-/** A title's character lineup — sourced from TheTVDB (real character artwork), not TMDB (see
- * src/services/tvdb.ts). Top-billed only, see getTvdbCharacters's mapping. */
+/** A title's character lineup — sourced from TheTVDB (real character artwork), not TMDB — every
+ * illustrated character, not just the leads, see getTvdbCharacters's mapping. */
 export interface TitleCastMember {
     personId: number;
     name: string;
