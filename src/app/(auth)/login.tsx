@@ -3,10 +3,11 @@ import { Animated, Keyboard, Platform, Pressable, Text, View, type KeyboardEvent
 import { Link } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Image } from 'expo-image'
+import * as AppleAuthentication from 'expo-apple-authentication'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { loginSchema, type LoginFormValues } from '@/features/auth/schemas'
-import { signInWithPassword } from '@/features/auth/api'
+import { signInWithApple, signInWithPassword } from '@/features/auth/api'
 import { AuthTextField } from '@/features/auth/components/AuthTextField'
 
 // iOS fires a spurious keyboard hide+show pair when focus moves directly between
@@ -74,6 +75,11 @@ export default function LoginScreen() {
         if (error) setError('root', { message: 'Email ou mot de passe incorrect' })
     }
 
+    async function handleAppleSignIn() {
+        const { error } = await signInWithApple()
+        if (error) setError('root', { message: 'Connexion avec Apple impossible, réessaie.' })
+    }
+
     return (
         <SafeAreaView className="flex-1 bg-background" edges={[ 'top', 'bottom' ]}>
             <Animated.View
@@ -126,6 +132,23 @@ export default function LoginScreen() {
                             Pas de compte ? Créer un compte
                         </Text>
                     </Link>
+
+                    {Platform.OS === 'ios' ? (
+                        <>
+                            <View className="flex-row items-center gap-3 pt-1">
+                                <View className="h-px flex-1 bg-border-subtle" />
+                                <Text className="text-[13px] text-content-tertiary">ou</Text>
+                                <View className="h-px flex-1 bg-border-subtle" />
+                            </View>
+                            <AppleAuthentication.AppleAuthenticationButton
+                                buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+                                cornerRadius={12}
+                                style={{ height: 46 }}
+                                onPress={handleAppleSignIn}
+                            />
+                        </>
+                    ) : null}
                 </View>
             </Animated.View>
         </SafeAreaView>

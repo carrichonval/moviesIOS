@@ -1,13 +1,15 @@
 import { useState } from 'react'
-import { Alert, Pressable, Switch, Text, View } from 'react-native'
+import { ActivityIndicator, Alert, Platform, Pressable, Switch, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller'
-import { Bell, ChevronRight, LogOut, Tv } from 'lucide-react-native'
+import { Bell, Check, ChevronRight, LogOut, Tv } from 'lucide-react-native'
+import Svg, { Path } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
 import { router } from 'expo-router'
+import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
-import { deleteAccount, signOut } from '@/features/auth/api'
+import { deleteAccount, linkAppleIdentity, signOut } from '@/features/auth/api'
 import { updateEmail, updatePassword } from '@/features/profile/api'
 import { useProfile, useUpdateUsername } from '@/features/profile/hooks'
 import { useNotificationsPreference, useSetNotificationsPreference } from '@/features/notifications/hooks'
@@ -40,6 +42,71 @@ function SkeletonRow({ isLast }: { isLast?: boolean }) {
                 </View>
                 <Skeleton width={18} height={18} rounded={9} />
             </View>
+        </View>
+    )
+}
+
+// Hand-drawn Apple logo (Font Awesome's "apple" brand glyph path, MIT-licensed) — the
+// U+F8FF private-use codepoint trick doesn't work here since this app loads a custom font that
+// doesn't include Apple's own glyph there, so an actual SVG shape is the reliable option
+// without pulling in a native icon module (react-native-svg is already a dependency of
+// lucide-react-native, no rebuild needed).
+function AppleLogo({ size = 18 }: { size?: number }) {
+    return (
+        <Svg width={size} height={(size * 512) / 384} viewBox="0 0 384 512">
+            <Path
+                fill="#FFFFFF"
+                d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"
+            />
+        </Svg>
+    )
+}
+
+// Apple sign-in is iOS-only (see login.tsx's own Platform.OS guard on the button) — this row
+// just mirrors that, no linking action makes sense where the native module isn't present.
+function AppleLinkRow() {
+    const { session } = useAuth()
+    const [ isLinking, setIsLinking ] = useState(false)
+    const isLinked = session?.user.identities?.some((identity) => identity.provider === 'apple') ?? false
+
+    async function handleLink() {
+        setIsLinking(true)
+        const { error } = await linkAppleIdentity()
+        // linkIdentity mutates the identity server-side but doesn't push the change through
+        // AuthProvider's onAuthStateChange on its own — refreshSession() does, which is what
+        // makes `isLinked` above flip without the user having to log out and back in.
+        if (!error) await supabase.auth.refreshSession()
+        setIsLinking(false)
+        if (error) Alert.alert('Erreur', 'Impossible de lier le compte Apple, réessaie.')
+    }
+
+    if (Platform.OS !== 'ios') return null
+
+    return (
+        <View className="flex-row items-center justify-between py-3">
+            <View className="flex-row items-center gap-3">
+                <View className="h-9 w-9 items-center justify-center rounded-xl bg-black">
+                    <AppleLogo size={16} />
+                </View>
+                <View>
+                    <Text className="text-[15px] font-semibold text-content-primary">Compte Apple</Text>
+                    <Text className="text-[13px] text-content-secondary">{isLinked ? 'Lié' : 'Non lié'}</Text>
+                </View>
+            </View>
+
+            {isLinked ? (
+                // Same green as the app's other "done/confirmed" checkmarks (tailwind's `success`).
+                <Check size={20} color="#30D158" />
+            ) : isLinking ? (
+                <ActivityIndicator color="#409CFF" />
+            ) : (
+                <Pressable
+                    onPress={handleLink}
+                    className="rounded-full bg-accent px-3.5 py-1.5 active:opacity-70"
+                >
+                    <Text className="text-[13px] font-semibold text-content-primary">Lier</Text>
+                </Pressable>
+            )}
         </View>
     )
 }
@@ -108,8 +175,9 @@ function AccountSection() {
                 autoComplete="password-new"
                 validate={(value) => passwordFieldSchema.safeParse(value).error?.issues[ 0 ]?.message}
                 onSave={handleSavePassword}
-                isLast
+                isLast={Platform.OS !== 'ios'}
             />
+            <AppleLinkRow />
         </SectionCard>
     )
 }

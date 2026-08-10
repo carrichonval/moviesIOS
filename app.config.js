@@ -49,6 +49,7 @@ module.exports = {
             'expo-router',
             'expo-secure-store',
             'expo-font',
+            'expo-apple-authentication',
             [ 'expo-notifications', { color: '#409CFF' } ],
         ],
         extra: {
