@@ -1,4 +1,3 @@
-import * as Linking from 'expo-linking'
 import { supabase } from '@/lib/supabase'
 
 export async function getProfile(userId: string) {
@@ -10,12 +9,4 @@ export async function getProfile(userId: string) {
 export async function updateUsername(userId: string, username: string) {
     const { error } = await supabase.from('users').update({ username }).eq('id', userId)
     if (error) throw error
-}
-
-export function updatePassword(password: string) {
-    return supabase.auth.updateUser({ password })
-}
-
-export function updateEmail(email: string) {
-    return supabase.auth.updateUser({ email }, { emailRedirectTo: Linking.createURL('auth/callback') })
 }

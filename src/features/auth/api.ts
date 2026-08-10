@@ -1,12 +1,7 @@
 import * as AppleAuthentication from 'expo-apple-authentication'
-import * as Linking from 'expo-linking'
 import { supabase } from '@/lib/supabase'
 import { getProfile, updateUsername } from '@/features/profile/api'
 import { createAppleNonce } from './apple'
-
-export function signInWithPassword(email: string, password: string) {
-    return supabase.auth.signInWithPassword({ email, password })
-}
 
 // Shared by signInWithApple and linkAppleIdentity below — same native credential, only what's
 // done with the resulting token/nonce differs (sign in as a new session vs. link onto the
@@ -54,11 +49,11 @@ async function applyAppleDisplayName(userId: string, fullName: string | null) {
     }
 }
 
-// New session via Apple — the login screen's entry point. If this Apple identity is already
-// linked (see linkAppleIdentity), Supabase resolves it back to that same existing user; if not,
-// this creates a brand new auth.users/public.users row (Supabase's usual OAuth-first-sign-in
-// behavior), which is why linking from Settings first matters for an account that already
-// exists under email/password.
+// New session via Apple — the login screen's only entry point now. If this Apple identity is
+// already linked (see linkAppleIdentity), Supabase resolves it back to that same existing user;
+// if not, this creates a brand new auth.users/public.users row (Supabase's usual OAuth-first-
+// sign-in behavior), which is why linking from Settings first matters for an account that
+// predates Apple sign-in (still had a password at the time).
 export async function signInWithApple() {
     const credential = await getAppleCredential()
     if (!credential) return { error: null }
@@ -86,14 +81,6 @@ export async function linkAppleIdentity() {
     })
     if (result.data?.user) await applyAppleDisplayName(result.data.user.id, credential.fullName)
     return result
-}
-
-export function signUp(email: string, password: string) {
-    return supabase.auth.signUp({
-        email,
-        password,
-        options: { emailRedirectTo: Linking.createURL('auth/callback') },
-    })
 }
 
 export function signOut() {

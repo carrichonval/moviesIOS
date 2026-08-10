@@ -10,10 +10,9 @@ import { router } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { deleteAccount, linkAppleIdentity, signOut } from '@/features/auth/api'
-import { updateEmail, updatePassword } from '@/features/profile/api'
 import { useProfile, useUpdateUsername } from '@/features/profile/hooks'
 import { useNotificationsPreference, useSetNotificationsPreference } from '@/features/notifications/hooks'
-import { emailFieldSchema, passwordFieldSchema, usernameFieldSchema } from '@/features/profile/schemas'
+import { usernameFieldSchema } from '@/features/profile/schemas'
 import { EditableRow } from '@/features/profile/components/EditableRow'
 import { ConfirmDeleteAccountModal } from '@/features/profile/components/ConfirmDeleteAccountModal'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -112,7 +111,7 @@ function AppleLinkRow() {
 }
 
 function AccountSection() {
-    const { session, isLoading: isAuthLoading } = useAuth()
+    const { isLoading: isAuthLoading } = useAuth()
     const { data: profile, isLoading: isProfileLoading } = useProfile()
     const { mutateAsync: saveUsername } = useUpdateUsername()
     const isLoading = isAuthLoading || isProfileLoading
@@ -121,25 +120,9 @@ function AccountSection() {
         await saveUsername(value)
     }
 
-    async function handleSaveEmail(value: string) {
-        const { error } = await updateEmail(value)
-        if (error) throw error
-        Alert.alert(
-            'Vérifie tes emails',
-            'Clique sur le lien de confirmation envoyé à ton ancienne et ta nouvelle adresse pour valider le changement.',
-        )
-    }
-
-    async function handleSavePassword(value: string) {
-        const { error } = await updatePassword(value)
-        if (error) throw error
-        Alert.alert('Mot de passe mis à jour')
-    }
-
     if (isLoading) {
         return (
             <SectionCard title="Compte">
-                <SkeletonRow />
                 <SkeletonRow />
                 <SkeletonRow isLast />
             </SectionCard>
@@ -155,26 +138,6 @@ function AccountSection() {
                 placeholder="Nom d'utilisateur"
                 validate={(value) => usernameFieldSchema.safeParse(value).error?.issues[ 0 ]?.message}
                 onSave={handleSaveUsername}
-            />
-            <EditableRow
-                label="Email"
-                displayValue={session?.user.email ?? '—'}
-                editValue={session?.user.email ?? ''}
-                placeholder="Email"
-                keyboardType="email-address"
-                autoComplete="email"
-                validate={(value) => emailFieldSchema.safeParse(value).error?.issues[ 0 ]?.message}
-                onSave={handleSaveEmail}
-            />
-            <EditableRow
-                label="Mot de passe"
-                displayValue="••••••••"
-                editValue=""
-                placeholder="Nouveau mot de passe"
-                secureTextEntry
-                autoComplete="password-new"
-                validate={(value) => passwordFieldSchema.safeParse(value).error?.issues[ 0 ]?.message}
-                onSave={handleSavePassword}
                 isLast={Platform.OS !== 'ios'}
             />
             <AppleLinkRow />
