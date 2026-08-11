@@ -6,6 +6,10 @@
 // 6797950214 in eas.json) — don't change that branch without checking there first.
 const APP_VARIANT = process.env.APP_VARIANT ?? 'development'
 const IS_PRODUCTION = APP_VARIANT === 'production'
+// Single source of truth for the marketing version (shown on the profile screen via
+// expo-constants) — `npm version patch` bumps package.json's version, which is all you need to
+// run before a build; nothing to keep in sync by hand here.
+const { version: APP_VERSION } = require('./package.json')
 
 /** @type {import('expo/config').ExpoConfig} */
 module.exports = {
@@ -14,7 +18,7 @@ module.exports = {
         name: IS_PRODUCTION ? "Krokmo'vie" : "Krokmo'vie (Dev)",
         // URL-safe identifier used by Expo/EAS to identify this project. Usually kebab-case of name.
         slug: 'krokmovie',
-        version: '1.0.0',
+        version: APP_VERSION,
         orientation: 'portrait',
         icon: './assets/icon.png',
         userInterfaceStyle: 'dark',

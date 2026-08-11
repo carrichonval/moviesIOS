@@ -7,6 +7,7 @@ import { Bell, Check, ChevronRight, LogOut, Tv } from 'lucide-react-native'
 import Svg, { Path } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
 import { router } from 'expo-router'
+import Constants from 'expo-constants'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { deleteAccount, linkAppleIdentity, signOut } from '@/features/auth/api'
@@ -272,6 +273,10 @@ export default function ProfileScreen() {
                 <Pressable onPress={() => setIsDeleteModalVisible(true)} className="items-center py-2">
                     <Text className="text-[14px] font-medium text-danger">Supprimer mon compte</Text>
                 </Pressable>
+
+                <Text className="pb-2 pt-2 text-center text-[12px] text-content-tertiary">
+                    Krokmo&apos;vie {Constants.expoConfig?.version ?? '—'}
+                </Text>
             </KeyboardAwareScrollView>
 
             <ConfirmDeleteAccountModal
