@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Dimensions, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import Animated, { FadeInDown } from 'react-native-reanimated'
 import { Calendar, ChevronRight, Clapperboard, Eye, Heart, History, ListChecks, Star, Tv } from 'lucide-react-native'
@@ -86,7 +85,7 @@ function StatsSkeleton() {
 }
 
 export default function StatsScreen() {
-    const tabBarHeight = useBottomTabBarHeight()
+    const insets = useSafeAreaInsets()
     const { stats, isLoading, isError, refetch } = useMovieStats()
     const [ isRefreshing, setIsRefreshing ] = useState(false)
 
@@ -101,7 +100,7 @@ export default function StatsScreen() {
             <SafeAreaView className="flex-1 bg-background" edges={[ 'top' ]}>
                 <ScrollView
                     showsVerticalScrollIndicator={false}
-                    contentContainerStyle={{ paddingHorizontal: HORIZONTAL_PADDING, paddingTop: 12, paddingBottom: tabBarHeight + 24 }}
+                    contentContainerStyle={{ paddingHorizontal: HORIZONTAL_PADDING, paddingTop: 12, paddingBottom: insets.bottom + 24 }}
                 >
                     <StatsSkeleton />
                 </ScrollView>
@@ -142,7 +141,7 @@ export default function StatsScreen() {
         <SafeAreaView className="flex-1 bg-background" edges={[ 'top' ]}>
             <ScrollView
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingHorizontal: HORIZONTAL_PADDING, paddingTop: 12, paddingBottom: tabBarHeight + 24 }}
+                contentContainerStyle={{ paddingHorizontal: HORIZONTAL_PADDING, paddingTop: 12, paddingBottom: insets.bottom + 24 }}
                 refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#409CFF" />}
             >
                 <Text className="mb-6 text-[28px] font-bold text-content-primary">Statistiques</Text>

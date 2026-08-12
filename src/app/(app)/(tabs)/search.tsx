@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { ActivityIndicator, Dimensions, FlatList, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import Animated, { FadeInDown } from 'react-native-reanimated'
 import { ChevronRight, Search as SearchIcon, SearchX, Tags, X } from 'lucide-react-native'
@@ -78,7 +77,7 @@ function TitleRow({ title, section, mediaType, items, isLoading, isError, delay,
 }
 
 export default function SearchScreen() {
-    const tabBarHeight = useBottomTabBarHeight()
+    const insets = useSafeAreaInsets()
     const [ searchQuery, setSearchQuery ] = useState('')
     const [ isRefreshing, setIsRefreshing ] = useState(false)
     const [ mediaType, setMediaType ] = useState<MediaType>('movie')
@@ -171,7 +170,7 @@ export default function SearchScreen() {
                         showsVerticalScrollIndicator={false}
                         contentContainerStyle={{
                             paddingHorizontal: GRID_HORIZONTAL_PADDING,
-                            paddingBottom: tabBarHeight + 24,
+                            paddingBottom: insets.bottom + 24,
                             gap: GRID_GAP,
                         }}
                         columnWrapperStyle={{ gap: GRID_GAP }}
@@ -196,7 +195,7 @@ export default function SearchScreen() {
             ) : (
                 <ScrollView
                     showsVerticalScrollIndicator={false}
-                    contentContainerStyle={{ paddingBottom: tabBarHeight + 24 }}
+                    contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
                     refreshControl={
                         <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#409CFF" />
                     }

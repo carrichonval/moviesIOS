@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { ActivityIndicator, Alert, Platform, Pressable, Switch, Text, View } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller'
 import { Bell, Check, ChevronRight, LogOut, Tv } from 'lucide-react-native'
 import Svg, { Path } from 'react-native-svg'
@@ -193,7 +192,7 @@ export default function ProfileScreen() {
     const { session, isLoading: isAuthLoading } = useAuth()
     const { data: profile, isLoading: isProfileLoading } = useProfile()
     const isLoading = isAuthLoading || isProfileLoading
-    const tabBarHeight = useBottomTabBarHeight()
+    const insets = useSafeAreaInsets()
     const [ isDeleting, setIsDeleting ] = useState(false)
     const [ isDeleteModalVisible, setIsDeleteModalVisible ] = useState(false)
 
@@ -233,7 +232,7 @@ export default function ProfileScreen() {
         <SafeAreaView className="flex-1 bg-background" edges={[ 'top' ]}>
             <KeyboardAwareScrollView
                 contentContainerClassName="gap-4 px-6 pt-6"
-                contentContainerStyle={{ paddingBottom: tabBarHeight + 24 }}
+                contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
                 keyboardShouldPersistTaps="handled"
                 bottomOffset={20}
             >

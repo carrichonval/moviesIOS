@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Dimensions, FlatList, Pressable, RefreshControl, Text, TextInput, View } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import Animated, { FadeIn } from 'react-native-reanimated'
 import * as Haptics from 'expo-haptics'
@@ -63,7 +62,7 @@ function LibraryGridSkeleton({ cardWidth }: { cardWidth: number }) {
 }
 
 export default function LibraryScreen() {
-    const tabBarHeight = useBottomTabBarHeight()
+    const insets = useSafeAreaInsets()
     const libraryQuery = useLibraryQuery()
     const library = libraryQuery.data ?? []
 
@@ -261,7 +260,7 @@ export default function LibraryScreen() {
                     refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#409CFF" />}
                     contentContainerStyle={{
                         paddingHorizontal: GRID_HORIZONTAL_PADDING,
-                        paddingBottom: tabBarHeight + 24,
+                        paddingBottom: insets.bottom + 60,
                         gap: GRID_GAP,
                     }}
                     columnWrapperStyle={{ gap: GRID_GAP }}
@@ -291,7 +290,7 @@ export default function LibraryScreen() {
             <Animated.View
                 entering={FadeIn.delay(300).duration(400)}
                 className="absolute right-5"
-                style={{ bottom: tabBarHeight + 20 }}
+                style={{ bottom: insets.bottom + 76 }}
             >
                 <Pressable
                     onPress={() => {

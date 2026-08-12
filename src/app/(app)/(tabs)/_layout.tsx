@@ -1,43 +1,30 @@
-import { StyleSheet } from 'react-native';
-import { Tabs } from 'expo-router';
-import { BlurView } from 'expo-blur';
-import { Popcorn, Search, BarChart3, User } from 'lucide-react-native'
+import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 
+// NativeTabs renders the actual native UITabBarController (via react-native-screens) instead of a
+// JS-drawn tab bar — on iOS 26 with Xcode 26 that means the real system Liquid Glass tab bar,
+// automatically, with no extra config. Older iOS falls back to the classic native tab bar style,
+// Android to Material 3. This replaces the old expo-router `Tabs` + BlurView background, which only
+// faked a blur — it can't reproduce iOS 26's real glass material. Labels are hidden (icon-only,
+// like Instagram) to keep the bar compact.
 export default function TabsLayout() {
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: '#409CFF',
-        tabBarInactiveTintColor: '#8E8E93',
-        tabBarStyle: {
-          position: 'absolute',
-          borderTopWidth: 0,
-          backgroundColor: 'transparent',
-          zIndex: 1,
-          elevation: 1,
-        },
-        tabBarBackground: () => (
-          <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFillObject} />
-        ),
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{ title: 'Bibliothèque', tabBarIcon: ({ color, size }) => <Popcorn color={color} size={size} /> }}
-      />
-      <Tabs.Screen
-        name="search"
-        options={{ title: 'Rechercher', tabBarIcon: ({ color, size }) => <Search color={color} size={size} /> }}
-      />
-      <Tabs.Screen
-        name="stats"
-        options={{ title: 'Stats', tabBarIcon: ({ color, size }) => <BarChart3 color={color} size={size} /> }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{ title: 'Profil', tabBarIcon: ({ color, size }) => <User color={color} size={size} /> }}
-      />
-    </Tabs>
+    <NativeTabs tintColor="#409CFF" iconColor={{ default: '#8E8E93', selected: '#409CFF' }}>
+      <NativeTabs.Trigger name="index">
+        <Label hidden>Bibliothèque</Label>
+        <Icon sf={{ default: 'popcorn', selected: 'popcorn.fill' }} />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="search">
+        <Label hidden>Rechercher</Label>
+        <Icon sf={{ default: 'magnifyingglass', selected: 'magnifyingglass' }} />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="stats">
+        <Label hidden>Stats</Label>
+        <Icon sf={{ default: 'chart.bar', selected: 'chart.bar.fill' }} />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="profile">
+        <Label hidden>Profil</Label>
+        <Icon sf={{ default: 'person', selected: 'person.fill' }} />
+      </NativeTabs.Trigger>
+    </NativeTabs>
   );
 }
