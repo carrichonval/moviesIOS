@@ -13,7 +13,7 @@ export default function TabsLayout() {
         <Label hidden>Bibliothèque</Label>
         <Icon sf={{ default: 'popcorn', selected: 'popcorn.fill' }} />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="search">
+      <NativeTabs.Trigger name="search" role="search">
         <Label hidden>Rechercher</Label>
         <Icon sf={{ default: 'magnifyingglass', selected: 'magnifyingglass' }} />
       </NativeTabs.Trigger>
