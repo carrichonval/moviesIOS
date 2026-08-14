@@ -1,6 +1,6 @@
 {
   "name": "krokmovie",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "main": "expo-router/entry",
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
