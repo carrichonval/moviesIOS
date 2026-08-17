@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Linking, Pressable, ScrollView, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Image } from 'expo-image'
+import { BlurView } from 'expo-blur'
 import * as Haptics from 'expo-haptics'
 import { router, useLocalSearchParams } from 'expo-router'
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
@@ -120,6 +121,14 @@ export default function MovieDetailScreen() {
     const partnerName = partnerUserId === MAEVA_USER_ID ? 'Maeva' : 'Valentin'
     const partnerRatingColor = partnerUserId === MAEVA_USER_ID ? MAEVA_RATING_COLOR : VALENTIN_RATING_COLOR
     const partnerRating = libraryEntry?.ratings.find((r) => r.userId === partnerUserId)?.rating ?? null
+    // Blurred only once there's an actual rating to hide (partnerRating !== null) *and*
+    // I haven't rated yet myself — an unrated partner just shows the normal empty stars,
+    // nothing to conceal. Once I rate too, the real value is revealed either way.
+    const isPartnerRatingBlurred = partnerRating !== null && myRating === null
+    // Decoy fill count shown (blurred) in place of the partner's real rating while
+    // isPartnerRatingBlurred — random so the blurred shape doesn't leak the real count;
+    // seeded per library entry so it doesn't reshuffle on every re-render.
+    const decoyRating = useMemo(() => Math.floor(Math.random() * 5) + 1, [ libraryEntry?.libraryEntryId ])
 
     // Which (at most 2) row is "mine" vs "the other" is still resolved by session id, not
     // MAEVA_USER_ID/VALENTIN_USER_ID (decided with the user) — myName/partnerName above are
@@ -133,6 +142,16 @@ export default function MovieDetailScreen() {
     const [ isCharacterSheetVisible, setIsCharacterSheetVisible ] = useState(false)
     const myFavoriteCharacter = favoriteCharactersQuery.data?.find((c) => c.userId === session?.user.id) ?? null
     const otherFavoriteCharacter = favoriteCharactersQuery.data?.find((c) => c.userId !== session?.user.id) ?? null
+    // Same gate as isPartnerRatingBlurred above: only blur once the partner has actually
+    // picked a character, and only until I pick one myself.
+    const isPartnerCharacterBlurred = otherFavoriteCharacter !== null && myFavoriteCharacter === null
+    // Decoy photo/name shown (blurred) in place of the partner's real pick while
+    // isPartnerCharacterBlurred — a real cast member so the blurred shape doesn't read as
+    // an obviously-empty placeholder. Seeded per entry so it stays put across re-renders.
+    const decoyCharacter = useMemo(
+        () => (castList.length > 0 ? castList[Math.floor(Math.random() * castList.length)] : null),
+        [ castList, libraryEntry?.libraryEntryId ],
+    )
 
     function handleSelectFavoriteCharacter(character: TitleCastMember) {
         if (!libraryEntry || !session?.user.id) return
@@ -425,15 +444,28 @@ export default function MovieDetailScreen() {
 
                             <View className="flex-1 items-center gap-2">
                                 <Text className="text-[17px] font-bold text-content-primary">Note de {partnerName}</Text>
-                                <View className="flex-row gap-1">
-                                    {RATING_VALUES.map((value) => (
-                                        <Star
-                                            key={value}
-                                            size={26}
-                                            color={partnerRatingColor}
-                                            fill={partnerRating !== null && value <= partnerRating ? partnerRatingColor : 'transparent'}
+                                <View className="overflow-hidden rounded-lg">
+                                    <View className="flex-row gap-1">
+                                        {RATING_VALUES.map((value) => (
+                                            <Star
+                                                key={value}
+                                                size={26}
+                                                color={partnerRatingColor}
+                                                fill={
+                                                    (isPartnerRatingBlurred ? value <= decoyRating : partnerRating !== null && value <= partnerRating)
+                                                        ? partnerRatingColor
+                                                        : 'transparent'
+                                                }
+                                            />
+                                        ))}
+                                    </View>
+                                    {isPartnerRatingBlurred ? (
+                                        <BlurView
+                                            intensity={80}
+                                            tint="dark"
+                                            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
                                         />
-                                    ))}
+                                    ) : null}
                                 </View>
                             </View>
                         </Animated.View>
@@ -481,21 +513,33 @@ export default function MovieDetailScreen() {
                                             borderRadius: FAVORITE_CHARACTER_RADIUS,
                                         }}
                                     >
-                                        {otherFavoriteCharacter?.profilePhotoUrl ? (
+                                        {(isPartnerCharacterBlurred ? decoyCharacter?.profilePhotoUrl : otherFavoriteCharacter?.profilePhotoUrl) ? (
                                             <Image
-                                                source={{ uri: otherFavoriteCharacter.profilePhotoUrl }}
+                                                source={{
+                                                    uri:
+                                                        (isPartnerCharacterBlurred
+                                                            ? decoyCharacter?.profilePhotoUrl
+                                                            : otherFavoriteCharacter?.profilePhotoUrl) ?? undefined,
+                                                }}
                                                 style={{ width: FAVORITE_CHARACTER_WIDTH, height: FAVORITE_CHARACTER_HEIGHT }}
                                                 contentFit="cover"
                                             />
                                         ) : (
                                             <UserRound size={24} color="#EBEBF599" />
                                         )}
+                                        {isPartnerCharacterBlurred ? (
+                                            <BlurView
+                                                intensity={80}
+                                                tint="dark"
+                                                style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+                                            />
+                                        ) : null}
                                     </View>
                                     <Text
                                         numberOfLines={1}
                                         className="text-center text-[12px] font-medium text-content-secondary"
                                     >
-                                        {otherFavoriteCharacter?.characterName ?? '—'}
+                                        {isPartnerCharacterBlurred ? '???' : (otherFavoriteCharacter?.characterName ?? '—')}
                                     </Text>
                                 </View>
                             </View>
