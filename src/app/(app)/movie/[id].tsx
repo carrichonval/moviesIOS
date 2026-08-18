@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Linking, Pressable, ScrollView, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Image } from 'expo-image'
 import { BlurView } from 'expo-blur'
+import type { BottomSheetModal } from '@gorhom/bottom-sheet'
 import * as Haptics from 'expo-haptics'
 import { router, useLocalSearchParams } from 'expo-router'
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
@@ -16,6 +17,7 @@ import {
     CARD_WIDTH as FAVORITE_CHARACTER_WIDTH,
     FavoriteCharacterSheet,
 } from '@/features/movies/components/FavoriteCharacterSheet'
+import { PosterPickerSheet } from '@/features/movies/components/PosterPickerSheet'
 import { MAEVA_RATING_COLOR, MAEVA_USER_ID, VALENTIN_RATING_COLOR, VALENTIN_USER_ID } from '@/constants/people'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useFavoriteCharactersQuery, useSetFavoriteCharacter } from '@/features/movies/api/favoriteCharacters'
@@ -24,13 +26,15 @@ import {
     useMarkAsViewed,
     useMarkEpisodesWatched,
     useRateTitle,
+    useSetPoster,
     useShowWatchesQuery,
     useToggleWishlist,
 } from '@/features/movies/api/library'
 import { useFavoriteProviderIds } from '@/features/movies/api/watchProviders'
-import { useTitleDetails } from '@/features/movies/hooks/useTmdbBrowse'
+import { useTitleDetails, useTitlePosters } from '@/features/movies/hooks/useTmdbBrowse'
 import { useTvdbCharacters } from '@/features/movies/hooks/useTvdbCharacters'
 import type { MediaType, TitleCastMember } from '@/types/tmdb'
+import type { TmdbPosterOption } from '@/services/tmdb'
 
 const COVER_WIDTH = 148
 const COVER_ASPECT_RATIO = 3 / 2 // TMDB posters are 2:3 (width:height)
@@ -166,6 +170,33 @@ export default function MovieDetailScreen() {
         setIsCharacterSheetVisible(false)
     }
 
+    const posterSheetRef = useRef<BottomSheetModal>(null)
+    // Tracks open/closed for `useTitlePosters`'s `enabled` below (gorhom's ref API is
+    // imperative — `.present()`/`.dismiss()` — so this is set from the button that presents
+    // it and from the sheet's own `onDismiss`, not from a `visible` prop). Only fetched once
+    // actually opened — no round-trip on every detail view for a feature most visits never touch.
+    const [ isPosterSheetOpen, setIsPosterSheetOpen ] = useState(false)
+    const titlePostersQuery = useTitlePosters(tmdbId, resolvedMediaType, { enabled: isPosterSheetOpen })
+    const setPoster = useSetPoster()
+    // The DB-cached poster (`titles.poster_url`) takes over from TMDB's own default the
+    // moment either the backfill (useBackfillMissingPosters, index.tsx) or a manual pick
+    // has written one — same override every other screen's grid already reads via
+    // `entry.posterUrl`, so this and the library grid never disagree on which poster to show.
+    const displayedPosterUrl = libraryEntry?.posterUrl ?? details?.posterUrl ?? null
+
+    function handleSelectPoster(poster: TmdbPosterOption) {
+        if (!details) return
+        Haptics.selectionAsync()
+        setPoster.mutate(
+            { item: details, posterUrl: poster.posterUrl },
+            {
+                onSuccess: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
+                onError: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error),
+            },
+        )
+        posterSheetRef.current?.dismiss()
+    }
+
     const showWatchesQuery = useShowWatchesQuery(libraryEntry?.libraryEntryId ?? null)
     const seasonWatchedCounts = useMemo(() => {
         const counts = new Map<number, number>()
@@ -292,14 +323,21 @@ export default function MovieDetailScreen() {
             ) : (
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 48 }}>
                     <Animated.View entering={FadeIn.duration(300)} className="flex-row items-start gap-4 px-5">
-                        <View className="overflow-hidden rounded-card bg-surface" style={{ width: COVER_WIDTH }}>
+                        <Pressable
+                            onPress={() => {
+                                setIsPosterSheetOpen(true)
+                                posterSheetRef.current?.present()
+                            }}
+                            className="overflow-hidden rounded-card bg-surface active:opacity-80"
+                            style={{ width: COVER_WIDTH }}
+                        >
                             <Image
-                                source={{ uri: details.posterUrl ?? undefined }}
+                                source={{ uri: displayedPosterUrl ?? undefined }}
                                 style={{ width: COVER_WIDTH, height: COVER_WIDTH * COVER_ASPECT_RATIO }}
                                 contentFit="cover"
                                 transition={200}
                             />
-                        </View>
+                        </Pressable>
 
                         <View className="flex-1 gap-2.5">
                             <Text className="text-[20px] font-bold text-content-primary">{details.title}</Text>
@@ -666,6 +704,15 @@ export default function MovieDetailScreen() {
                 cast={castList}
                 onSelect={handleSelectFavoriteCharacter}
                 onClose={() => setIsCharacterSheetVisible(false)}
+            />
+
+            <PosterPickerSheet
+                ref={posterSheetRef}
+                posters={titlePostersQuery.data ?? []}
+                isLoading={titlePostersQuery.isLoading}
+                selectedPosterUrl={displayedPosterUrl}
+                onSelect={handleSelectPoster}
+                onDismiss={() => setIsPosterSheetOpen(false)}
             />
         </SafeAreaView>
     )

@@ -3,6 +3,7 @@ import '@/features/notifications/setup';
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -50,8 +51,10 @@ export default function RootLayout() {
         <SafeAreaProvider>
           <AuthProvider>
             <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
-              <StatusBar style="light" />
-              <RootNavigator />
+              <BottomSheetModalProvider>
+                <StatusBar style="light" />
+                <RootNavigator />
+              </BottomSheetModalProvider>
             </PersistQueryClientProvider>
           </AuthProvider>
         </SafeAreaProvider>

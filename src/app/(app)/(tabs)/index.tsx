@@ -1,13 +1,17 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Dimensions, FlatList, Pressable, RefreshControl, Text, TextInput, View } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import Animated, { FadeIn } from 'react-native-reanimated'
+import type { BottomSheetModal } from '@gorhom/bottom-sheet'
 import * as Haptics from 'expo-haptics'
 import { Search, SearchX, Shuffle, X } from 'lucide-react-native'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { BrowseMovieCard } from '@/features/movies/components/BrowseMovieCard'
-import { useLibraryQuery, type MovieLibraryEntry } from '@/features/movies/api/library'
+import { PosterPickerSheet } from '@/features/movies/components/PosterPickerSheet'
+import { useBackfillMissingPosters, useLibraryQuery, useSetPoster, type MovieLibraryEntry } from '@/features/movies/api/library'
+import { useTitlePosters } from '@/features/movies/hooks/useTmdbBrowse'
+import type { TmdbPosterOption } from '@/services/tmdb'
 import type { MediaType, TmdbBrowseItem } from '@/types/tmdb'
 
 // Matches gameTracker's own library grid (`(tabs)/index.tsx`) exactly.
@@ -65,6 +69,37 @@ export default function LibraryScreen() {
     const insets = useSafeAreaInsets()
     const libraryQuery = useLibraryQuery()
     const library = libraryQuery.data ?? []
+    useBackfillMissingPosters()
+
+    // One shared poster picker for the whole grid — not one BottomSheetModal per card — see
+    // BrowseMovieCard's `onRequestPosterChange` doc. `posterTarget` is whichever card's
+    // long-press menu last asked to change its poster.
+    const posterSheetRef = useRef<BottomSheetModal>(null)
+    const [ posterTarget, setPosterTarget ] = useState<TmdbBrowseItem | null>(null)
+    const [ isPosterSheetOpen, setIsPosterSheetOpen ] = useState(false)
+    const titlePostersQuery = useTitlePosters(posterTarget?.tmdbId ?? 0, posterTarget?.mediaType ?? 'movie', {
+        enabled: isPosterSheetOpen && posterTarget !== null,
+    })
+    const setPoster = useSetPoster()
+
+    function handleRequestPosterChange(item: TmdbBrowseItem) {
+        setPosterTarget(item)
+        setIsPosterSheetOpen(true)
+        posterSheetRef.current?.present()
+    }
+
+    function handleSelectPoster(poster: TmdbPosterOption) {
+        if (!posterTarget) return
+        Haptics.selectionAsync()
+        setPoster.mutate(
+            { item: posterTarget, posterUrl: poster.posterUrl },
+            {
+                onSuccess: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
+                onError: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error),
+            },
+        )
+        posterSheetRef.current?.dismiss()
+    }
 
     const [ searchQuery, setSearchQuery ] = useState('')
     const [ watchedTab, setWatchedTab ] = useState<WatchedTab>('vu')
@@ -279,6 +314,8 @@ export default function LibraryScreen() {
                             showWishlistBadge={false}
                             showInProgressBadge={watchedTab !== 'en-cours'}
                             showRatingBadges
+                            allowPosterChange
+                            onRequestPosterChange={handleRequestPosterChange}
                         />
                     )}
                 />
@@ -310,6 +347,18 @@ export default function LibraryScreen() {
                     <Shuffle size={22} color="#FFFFFF" />
                 </Pressable>
             </Animated.View>
+
+            <PosterPickerSheet
+                ref={posterSheetRef}
+                posters={titlePostersQuery.data ?? []}
+                isLoading={titlePostersQuery.isLoading}
+                selectedPosterUrl={posterTarget?.posterUrl ?? null}
+                onSelect={handleSelectPoster}
+                onDismiss={() => {
+                    setIsPosterSheetOpen(false)
+                    setPosterTarget(null)
+                }}
+            />
         </SafeAreaView>
     )
 }

@@ -1,6 +1,7 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { getTitleDetails } from '@/services/tmdb'
 import type { MediaType, TmdbBrowseItem } from '@/types/tmdb'
 
 // The `movies` schema isn't in src/types/database.ts (a stub scoped to `public`, see
@@ -134,6 +135,36 @@ export function useLibraryEntryLookup() {
         }
         return map
     }, [ libraryQuery.data ])
+}
+
+// Best-effort self-healing for entries that had no poster yet when they were added (title
+// not released, or TMDB just had nothing at the time) — tries once per app session for
+// whatever's still missing one, and simply stays null again if TMDB still has nothing. A
+// title drops out of the "missing" set for good the moment this succeeds for it, so this
+// only ever does real work for entries that actually need it — call once from the library
+// screen, not from every card.
+export function useBackfillMissingPosters() {
+    const queryClient = useQueryClient()
+    const libraryQuery = useLibraryQuery()
+    const attemptedRef = useRef(false)
+
+    useEffect(() => {
+        if (attemptedRef.current) return
+        const missing = (libraryQuery.data ?? []).filter((entry) => entry.posterUrl === null)
+        if (missing.length === 0) return
+        attemptedRef.current = true
+
+        Promise.allSettled(
+            missing.map(async (entry) => {
+                const details = await getTitleDetails(entry.tmdbId, entry.mediaType)
+                if (!details.posterUrl) return
+                const { error } = await moviesDb.from('titles').update({ poster_url: details.posterUrl }).eq('id', entry.titleId)
+                if (error) throw error
+            }),
+        ).then(() => {
+            queryClient.invalidateQueries({ queryKey: [ 'movie-library' ] })
+        })
+    }, [ libraryQuery.data, queryClient ])
 }
 
 // Upserts without `ignoreDuplicates` on purpose: with it, an upsert that hits an existing
@@ -287,6 +318,27 @@ export function useRateTitle() {
                     { library_entry_id: entry.id, user_id: userId, rating },
                     { onConflict: 'library_entry_id,user_id' },
                 )
+            if (error) throw error
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [ 'movie-library' ] })
+        },
+    })
+}
+
+// Persists a manually-picked poster (from the picker sheet) as this title's override —
+// same `titles.poster_url` column `ensureTitle`/the backfill above already write, so
+// search/browse/library grids all pick it up for free with no extra plumbing. `ensureTitle`
+// runs first so this also works for a title not yet in the library (same lazy-add-on-any-
+// interaction convention as rating/wishlist/favorite character above), then the picked URL
+// overwrites whatever `ensureTitle` just wrote from the item's own (TMDB-default) poster.
+export function useSetPoster() {
+    const queryClient = useQueryClient()
+
+    return useMutation({
+        mutationFn: async ({ item, posterUrl }: { item: TmdbBrowseItem; posterUrl: string }) => {
+            const title = await ensureTitle(item)
+            const { error } = await moviesDb.from('titles').update({ poster_url: posterUrl }).eq('id', title.id)
             if (error) throw error
         },
         onSuccess: () => {

@@ -6,6 +6,7 @@ import {
     getRecentTitles,
     getSeasonDetails,
     getTitleDetails,
+    getTitlePosters,
     getTitlesByGenre,
     getTopRatedTitles,
     getWatchProviderCatalog,
@@ -147,6 +148,16 @@ export function useTitleDetails(tmdbId: number, mediaType: MediaType) {
         queryKey: [ 'tmdb', 'details', tmdbId, mediaType ],
         queryFn: () => getTitleDetails(tmdbId, mediaType),
         enabled: Number.isFinite(tmdbId) && tmdbId > 0,
+    })
+}
+
+// Only fetched when the poster picker sheet is actually open (`enabled`) — not worth a
+// round-trip on every detail screen visit for a feature most visits never touch.
+export function useTitlePosters(tmdbId: number, mediaType: MediaType, options?: { enabled?: boolean }) {
+    return useQuery({
+        queryKey: [ 'tmdb', 'posters', tmdbId, mediaType ],
+        queryFn: () => getTitlePosters(tmdbId, mediaType),
+        enabled: options?.enabled,
     })
 }
 

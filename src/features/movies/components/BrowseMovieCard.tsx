@@ -52,6 +52,12 @@ interface BrowseMovieCardProps {
      * library screen turns this on; search/browse/genres/similar-titles rows are about
      * discovering something new, not reviewing what's already been rated. */
     showRatingBadges?: boolean;
+    /** Offer "Changer le poster" in the long-press menu — off by default, only shown once
+     * the title is in the library (same gate as "Retirer"). Reports the request via
+     * `onRequestPosterChange` rather than owning a picker sheet itself: one shared
+     * BottomSheetModal per screen, not one per card in a 150+ card grid. */
+    allowPosterChange?: boolean;
+    onRequestPosterChange?: (item: TmdbBrowseItem) => void;
 }
 
 const COVER_RADIUS = 16
@@ -60,6 +66,7 @@ const COVER_ASPECT_RATIO = 3 / 2 // TMDB posters are 2:3 (width:height)
 
 const WISHLIST_LABEL = 'Liste de souhait'
 const REMOVE_LABEL = 'Retirer de la bibliothèque'
+const CHANGE_POSTER_LABEL = 'Changer le poster'
 export const RATING_VALUES = [ 1, 2, 3, 4, 5 ]
 
 function BrowseMovieCardComponent({
@@ -71,6 +78,8 @@ function BrowseMovieCardComponent({
     showWishlistBadge = true,
     showInProgressBadge = true,
     showRatingBadges = false,
+    allowPosterChange = false,
+    onRequestPosterChange,
 }: BrowseMovieCardProps) {
     const { session } = useAuth()
     const libraryEntry = libraryEntryProp
@@ -129,6 +138,15 @@ function BrowseMovieCardComponent({
             })
         }
 
+        // Same gate as "Retirer" below — nothing to attach a poster override to before the
+        // title is actually in the library.
+        if (allowPosterChange && libraryEntry) {
+            actions.push({
+                title: CHANGE_POSTER_LABEL,
+                systemIcon: 'photo',
+            })
+        }
+
         // Only offered once the title is actually in the library — nothing to remove
         // otherwise. There was previously no way to undo a mistaken add (wrong duplicate,
         // wrong version of a show) short of editing the database by hand.
@@ -141,7 +159,7 @@ function BrowseMovieCardComponent({
         }
 
         return actions
-    }, [ isWishlist, hasViewed, viewedLabel, canMarkViewed, canRate, myRating, libraryEntry ])
+    }, [ isWishlist, hasViewed, viewedLabel, canMarkViewed, canRate, myRating, libraryEntry, allowPosterChange ])
 
     function handleContextMenuPress(e: NativeSyntheticEvent<ContextMenuOnPressNativeEvent>) {
         const { name } = e.nativeEvent
@@ -161,6 +179,12 @@ function BrowseMovieCardComponent({
                 onSuccess: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
                 onError: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error),
             })
+            return
+        }
+
+        if (name === CHANGE_POSTER_LABEL) {
+            Haptics.selectionAsync()
+            onRequestPosterChange?.(item)
             return
         }
 

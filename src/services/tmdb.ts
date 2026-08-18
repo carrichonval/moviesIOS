@@ -267,6 +267,39 @@ export async function getSeasonDetails(tvId: number, seasonNumber: number): Prom
     }
 }
 
+export interface TmdbPosterOption {
+    filePath: string;
+    posterUrl: string;
+    languageCode: string | null;
+}
+
+interface RawPosterImage {
+    file_path: string;
+    iso_639_1: string | null;
+    vote_average: number;
+}
+
+interface RawImagesResponse {
+    posters?: RawPosterImage[];
+}
+
+// For the "choisir une affiche" picker — TMDB's default `/images` response only returns
+// posters tagged with the request's own language (fr-FR, forced server-side by the `tmdb`
+// edge function) or no language at all, which is usually 1-2 results. `include_image_language`
+// widens that to French, English, and textless posters — the same spread other poster-picker
+// UIs (SuiteTV etc.) show. Sorted by vote_average since that's the closest TMDB has to "best
+// looking first".
+export async function getTitlePosters(tmdbId: number, mediaType: MediaType = 'movie'): Promise<TmdbPosterOption[]> {
+    const raw = await tmdbRequest<RawImagesResponse>(
+        mediaType === 'movie' ? `/movie/${tmdbId}/images` : `/tv/${tmdbId}/images`,
+        { include_image_language: 'fr,en,null' },
+    )
+    return (raw.posters ?? [])
+        .slice()
+        .sort((a, b) => b.vote_average - a.vote_average)
+        .map((p) => ({ filePath: p.file_path, posterUrl: tmdbPosterUrl(p.file_path) as string, languageCode: p.iso_639_1 }))
+}
+
 interface RawWatchProviderCatalogResponse {
     results?: RawWatchProvider[];
 }
