@@ -21,8 +21,8 @@ const CATEGORY_TABS: { key: MediaType; label: string }[] = [
     { key: 'tv', label: 'Séries' },
 ]
 
-const GRID_HORIZONTAL_PADDING = 16
-const GRID_GAP = 12
+const GRID_HORIZONTAL_PADDING = 10
+const GRID_GAP = 15
 const GRID_COLUMNS = 3
 
 const ROW_CARD_WIDTH = 110
@@ -50,7 +50,7 @@ function TitleRow({ title, section, mediaType, items, isLoading, isError, delay,
                     <ActivityIndicator color="#409CFF" />
                 </View>
             ) : isError || !items?.length ? (
-                <View className="h-[165px] items-center justify-center px-5">
+                <View className="h-[165px] items-center justify-center px-2.5">
                     <Text className="text-center text-[13px] text-content-tertiary">
                         {isError ? "Impossible de charger cette liste." : "Rien à afficher."}
                     </Text>
@@ -60,7 +60,7 @@ function TitleRow({ title, section, mediaType, items, isLoading, isError, delay,
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     style={{ overflow: 'visible' }}
-                    contentContainerStyle={{ gap: 14, paddingHorizontal: 20 }}
+                    contentContainerStyle={{ gap: 14, paddingHorizontal: 10 }}
                 >
                     {items.map((item) => (
                         <BrowseMovieCard
@@ -105,7 +105,7 @@ export default function SearchScreen() {
 
     return (
         <SafeAreaView className="flex-1 bg-background" edges={[ 'top' ]}>
-            <Animated.View entering={FadeInDown.duration(300)} className="mb-6 px-5">
+            <Animated.View entering={FadeInDown.duration(300)} className="mb-6 px-2.5">
                 <View className="flex-row items-center gap-2 rounded-2xl border border-border-subtle bg-surface px-3 py-2.5">
                     <SearchIcon size={18} color="#EBEBF599" />
                     <TextInput
@@ -124,7 +124,7 @@ export default function SearchScreen() {
                 </View>
             </Animated.View>
 
-            <Animated.View entering={FadeInDown.delay(40).duration(300)} className="mb-6 flex-row gap-2 px-5">
+            <Animated.View entering={FadeInDown.delay(40).duration(300)} className="mb-6 flex-row gap-2 px-2.5">
                 {CATEGORY_TABS.map((tab) => {
                     const isActive = mediaType === tab.key
                     return (
@@ -200,7 +200,7 @@ export default function SearchScreen() {
                         <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#409CFF" />
                     }
                 >
-                    <Animated.View entering={FadeInDown.delay(40).duration(400)} className="mb-6 px-5">
+                    <Animated.View entering={FadeInDown.delay(40).duration(400)} className="mb-6 px-2.5">
                         <Pressable
                             onPress={() => router.push('/genres')}
                             className="flex-row items-center gap-3 rounded-2xl border border-border-subtle bg-surface px-4 py-3.5 active:opacity-70"

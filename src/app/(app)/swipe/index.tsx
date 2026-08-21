@@ -57,7 +57,7 @@ export default function SwipeConfigScreen() {
 
     return (
         <SafeAreaView className="flex-1 bg-background" edges={[ 'top' ]}>
-            <View className="mb-6 flex-row items-center gap-3 px-5">
+            <View className="mb-6 flex-row items-center gap-3 px-2.5">
                 <Pressable onPress={() => router.back()} hitSlop={8} className="active:opacity-60">
                     <ChevronLeft size={26} color="#FFFFFF" />
                 </Pressable>
@@ -65,7 +65,7 @@ export default function SwipeConfigScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
-                <View className="mb-6 flex-row gap-3 px-5">
+                <View className="mb-6 flex-row gap-3 px-2.5">
                     <Pressable
                         onPress={() => handleSelectSource('wishlist')}
                         className={`flex-1 items-center gap-2 rounded-2xl border p-5 active:opacity-70 ${
@@ -103,7 +103,7 @@ export default function SwipeConfigScreen() {
                     </Pressable>
                 </View>
 
-                <View className="mb-6 flex-row gap-2 px-5">
+                <View className="mb-6 flex-row gap-2 px-2.5">
                     {CATEGORY_TABS.map((tab) => {
                         const isActive = mediaType === tab.key
                         return (
@@ -127,7 +127,7 @@ export default function SwipeConfigScreen() {
                 </View>
 
                 {source === 'discover' ? (
-                    <View className="mb-6 gap-2 px-5">
+                    <View className="mb-6 gap-2 px-2.5">
                         <Text className="text-[13px] font-semibold uppercase tracking-wide text-content-secondary">
                             Genres (optionnel, plusieurs possibles)
                         </Text>
@@ -174,7 +174,7 @@ export default function SwipeConfigScreen() {
                     </View>
                 ) : null}
 
-                <View className="px-5">
+                <View className="px-2.5">
                     <Pressable
                         onPress={handleStart}
                         disabled={!source}

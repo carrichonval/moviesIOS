@@ -282,7 +282,7 @@ function BrowseMovieCardComponent({
                 </Text>
             </View>
             {isValentinRatingBlurred ? (
-                <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+                <BlurView intensity={10} tint="dark" style={StyleSheet.absoluteFill} />
             ) : null}
         </View>
     ) : null
@@ -296,7 +296,7 @@ function BrowseMovieCardComponent({
                 </Text>
             </View>
             {isMaevaRatingBlurred ? (
-                <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+                <BlurView intensity={10} tint="dark" style={StyleSheet.absoluteFill} />
             ) : null}
         </View>
     ) : null

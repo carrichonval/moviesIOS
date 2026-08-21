@@ -231,7 +231,7 @@ export default function ProfileScreen() {
     return (
         <SafeAreaView className="flex-1 bg-background" edges={[ 'top' ]}>
             <KeyboardAwareScrollView
-                contentContainerClassName="gap-4 px-6 pt-6"
+                contentContainerClassName="gap-4 px-2.5 pt-6"
                 contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
                 keyboardShouldPersistTaps="handled"
                 bottomOffset={20}

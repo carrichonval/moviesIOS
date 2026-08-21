@@ -39,8 +39,6 @@ export interface MovieStats {
     otherGenresCount: number;
     ratingDistribution: RatingCount[];
     activityByMonth: MonthCount[];
-    addedThisMonthCount: number;
-    topShowByEpisodes: { tmdbId: number; name: string; count: number } | null;
 }
 
 function average(values: number[]): number | null {
@@ -80,19 +78,6 @@ function computeStats(library: MovieLibraryEntry[]): Omit<MovieStats, 'activityB
         maevaCount: allRatings.filter((r) => r.userId === MAEVA_USER_ID && r.rating === value).length,
     }))
 
-    const now = new Date()
-    const addedThisMonthCount = library.filter((entry) => {
-        const addedDate = new Date(entry.addedAt)
-        return addedDate.getFullYear() === now.getFullYear() && addedDate.getMonth() === now.getMonth()
-    }).length
-
-    const topShow = [ ...library ]
-        .filter((entry) => entry.mediaType === 'tv' && entry.episodesWatchedCount > 0)
-        .sort((a, b) => b.episodesWatchedCount - a.episodesWatchedCount)[ 0 ]
-    const topShowByEpisodes = topShow
-        ? { tmdbId: topShow.tmdbId, name: topShow.name, count: topShow.episodesWatchedCount }
-        : null
-
     return {
         moviesWatchedCount,
         showsWatchedCount,
@@ -105,8 +90,6 @@ function computeStats(library: MovieLibraryEntry[]): Omit<MovieStats, 'activityB
         byGenre,
         otherGenresCount,
         ratingDistribution,
-        addedThisMonthCount,
-        topShowByEpisodes,
     }
 }
 

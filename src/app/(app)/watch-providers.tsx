@@ -13,7 +13,7 @@ const LOGO_SIZE = 56
 // instead of stretching 3 items across the full width (justify-between) or leaving one
 // big gap on the right (plain flex-wrap with no fixed slot width).
 const GRID_COLUMNS = 5
-const GRID_HORIZONTAL_PADDING = 20
+const GRID_HORIZONTAL_PADDING = 10
 const GRID_GAP = 14
 const COLUMN_WIDTH =
     (Dimensions.get('window').width - GRID_HORIZONTAL_PADDING * 2 - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS
@@ -30,14 +30,14 @@ export default function WatchProvidersScreen() {
 
     return (
         <SafeAreaView className="flex-1 bg-background" edges={[ 'top' ]}>
-            <View className="mb-4 flex-row items-center gap-3 px-5">
+            <View className="mb-4 flex-row items-center gap-3 px-2.5">
                 <Pressable onPress={() => router.back()} hitSlop={8} className="active:opacity-60">
                     <ChevronLeft size={26} color="#FFFFFF" />
                 </Pressable>
                 <Text className="flex-1 text-[20px] font-bold text-content-primary">Plateformes favorites</Text>
             </View>
 
-            <Text className="mb-5 px-5 text-[13px] text-content-secondary">
+            <Text className="mb-5 px-2.5 text-[13px] text-content-secondary">
                 Les plateformes que tu coches ici seront mises en avant (bordure jaune) sur la fiche d'un film ou
                 d'une série quand il y est disponible en abonnement.
             </Text>
@@ -54,7 +54,7 @@ export default function WatchProvidersScreen() {
                 </View>
             ) : (
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
-                    <View className="flex-row flex-wrap px-5" style={{ gap: GRID_GAP }}>
+                    <View className="flex-row flex-wrap px-2.5" style={{ gap: GRID_GAP }}>
                         {catalog.map((provider) => {
                             const isFavorite = favoriteProviderIds.has(provider.providerId)
                             return (

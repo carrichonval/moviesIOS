@@ -42,7 +42,7 @@ function GenreRow({ genreId, name, mediaType, delay, libraryLookup }: {
                     <ActivityIndicator color="#409CFF" />
                 </View>
             ) : isError || !items?.length ? (
-                <View className="h-[165px] items-center justify-center px-5">
+                <View className="h-[165px] items-center justify-center px-2.5">
                     <Text className="text-center text-[13px] text-content-tertiary">
                         Rien à afficher pour l'instant.
                     </Text>
@@ -52,7 +52,7 @@ function GenreRow({ genreId, name, mediaType, delay, libraryLookup }: {
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     style={{ overflow: 'visible' }}
-                    contentContainerStyle={{ gap: 14, paddingHorizontal: 20 }}
+                    contentContainerStyle={{ gap: 14, paddingHorizontal: 10 }}
                 >
                     {items.map((item) => (
                         <BrowseMovieCard
@@ -75,14 +75,14 @@ export default function GenresScreen() {
 
     return (
         <SafeAreaView className="flex-1 bg-background" edges={[ 'top' ]}>
-            <View className="mb-4 flex-row items-center gap-3 px-5">
+            <View className="mb-4 flex-row items-center gap-3 px-2.5">
                 <Pressable onPress={() => router.back()} hitSlop={8} className="active:opacity-60">
                     <ChevronLeft size={26} color="#FFFFFF" />
                 </Pressable>
                 <Text className="flex-1 text-[20px] font-bold text-content-primary">Catégories</Text>
             </View>
 
-            <View className="mb-6 flex-row gap-2 px-5">
+            <View className="mb-6 flex-row gap-2 px-2.5">
                 {CATEGORY_TABS.map((tab) => {
                     const isActive = mediaType === tab.key
                     return (

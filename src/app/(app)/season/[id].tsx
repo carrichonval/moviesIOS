@@ -27,7 +27,7 @@ function formatAirDate(iso: string | null) {
 
 function SeasonSkeleton() {
     return (
-        <View className="gap-4 px-5">
+        <View className="gap-4 px-2.5">
             {Array.from({ length: 6 }).map((_, index) => (
                 <View key={index} className="flex-row items-center gap-3">
                     <Skeleton width={STILL_WIDTH} height={STILL_WIDTH * STILL_ASPECT_RATIO} rounded={12} />
@@ -207,7 +207,7 @@ export default function SeasonScreen() {
 
     return (
         <SafeAreaView className="flex-1 bg-background" edges={[ 'top' ]}>
-            <View className="mb-2 flex-row items-center justify-between px-5">
+            <View className="mb-2 flex-row items-center justify-between px-2.5">
                 <Pressable onPress={() => router.back()} hitSlop={8} className="active:opacity-60">
                     <ChevronLeft size={26} color="#FFFFFF" />
                 </Pressable>
@@ -234,7 +234,7 @@ export default function SeasonScreen() {
                 </View>
             ) : (
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 48 }}>
-                    <Animated.View entering={FadeIn.duration(300)} className="gap-1 px-5">
+                    <Animated.View entering={FadeIn.duration(300)} className="gap-1 px-2.5">
                         <Text className="text-[13px] font-medium text-content-tertiary">{details.title}</Text>
                         <Text className="text-[22px] font-bold text-content-primary">{season.name}</Text>
                         <Text className="text-[13px] text-content-secondary">
@@ -243,7 +243,7 @@ export default function SeasonScreen() {
                         </Text>
                     </Animated.View>
 
-                    <Animated.View entering={FadeInDown.delay(80).duration(300)} className="mt-5 gap-2.5 px-5">
+                    <Animated.View entering={FadeInDown.delay(80).duration(300)} className="mt-5 gap-2.5 px-2.5">
                         {episodes.map((episode) => (
                             <EpisodeRow
                                 key={episode.episodeNumber}

@@ -177,7 +177,7 @@ export default function LibraryScreen() {
 
     return (
         <SafeAreaView className="flex-1 bg-background" edges={[ 'top' ]}>
-            <View className="mb-4 px-5 pt-3">
+            <View className="mb-4 px-2.5 pt-3">
                 <View className="flex-row items-center gap-2 rounded-2xl border border-border-subtle bg-surface px-3 py-2.5">
                     <Search size={18} color="#EBEBF599" />
                     <TextInput
@@ -196,7 +196,7 @@ export default function LibraryScreen() {
                 </View>
             </View>
 
-            <View className="mb-3 flex-row gap-2 px-5">
+            <View className="mb-3 flex-row gap-2 px-2.5">
                 <Pressable
                     onPress={() => setWatchedTab('vu')}
                     className={`flex-1 items-center rounded-2xl border py-2.5 active:opacity-60 ${
@@ -240,7 +240,7 @@ export default function LibraryScreen() {
             </View>
 
             {watchedTab !== 'en-cours' ? (
-                <View className="mb-4 flex-row gap-2 px-5">
+                <View className="mb-4 flex-row gap-2 px-2.5">
                     {MEDIA_FILTERS.map((filter) => {
                         const isActive = mediaFilter === filter.key
                         return (

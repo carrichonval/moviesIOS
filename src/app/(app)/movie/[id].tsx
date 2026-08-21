@@ -70,7 +70,7 @@ function Chip({ label }: { label: string }) {
 
 function DetailSkeleton() {
     return (
-        <View className="flex-row items-start gap-4 px-5">
+        <View className="flex-row items-start gap-4 px-2.5">
             <Skeleton width={COVER_WIDTH} height={COVER_WIDTH * COVER_ASPECT_RATIO} rounded={16} />
             <View className="flex-1 gap-2.5 pt-1">
                 <Skeleton width="80%" height={20} rounded={4} />
@@ -304,7 +304,7 @@ export default function MovieDetailScreen() {
 
     return (
         <SafeAreaView className="flex-1 bg-background" edges={[ 'top' ]}>
-            <View className="mb-2 px-5">
+            <View className="mb-2 px-2.5">
                 <Pressable onPress={() => router.back()} hitSlop={8} className="self-start active:opacity-60">
                     <ChevronLeft size={26} color="#FFFFFF" />
                 </Pressable>
@@ -322,7 +322,7 @@ export default function MovieDetailScreen() {
                 </View>
             ) : (
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 48 }}>
-                    <Animated.View entering={FadeIn.duration(300)} className="flex-row items-start gap-4 px-5">
+                    <Animated.View entering={FadeIn.duration(300)} className="flex-row items-start gap-4 px-2.5">
                         <Pressable
                             onPress={() => {
                                 setIsPosterSheetOpen(true)
@@ -400,7 +400,7 @@ export default function MovieDetailScreen() {
                         </View>
                     </Animated.View>
 
-                    <Animated.View entering={FadeInDown.delay(80).duration(300)} className="mt-6 flex-row flex-wrap items-center gap-2 px-5">
+                    <Animated.View entering={FadeInDown.delay(80).duration(300)} className="mt-6 flex-row flex-wrap items-center gap-2 px-2.5">
                         <Pressable
                             onPress={handleWishlistPress}
                             className={`flex-row items-center gap-1.5 rounded-full border px-3 py-1.5 active:opacity-60 ${
@@ -450,7 +450,7 @@ export default function MovieDetailScreen() {
                     </Animated.View>
 
                     {isMovie ? (
-                        <Animated.View entering={FadeInDown.delay(100).duration(300)} className="mt-3 px-5">
+                        <Animated.View entering={FadeInDown.delay(100).duration(300)} className="mt-3 px-2.5">
                             <Pressable
                                 onPress={handleViewedPress}
                                 className="flex-row items-center justify-center gap-2 self-start rounded-2xl bg-accent px-4 py-2.5 active:opacity-70"
@@ -464,7 +464,7 @@ export default function MovieDetailScreen() {
                     ) : null}
 
                     {hasViewed ? (
-                        <Animated.View entering={FadeInDown.delay(120).duration(300)} className="mt-8 flex-row px-5" style={{ gap: FAVORITE_CHARACTER_COLUMN_GAP }}>
+                        <Animated.View entering={FadeInDown.delay(120).duration(300)} className="mt-8 flex-row px-2.5" style={{ gap: FAVORITE_CHARACTER_COLUMN_GAP }}>
                             <View className="flex-1 items-center gap-2">
                                 <Text className="text-[17px] font-bold text-content-primary">Ta note</Text>
                                 <View className="flex-row gap-1">
@@ -510,7 +510,7 @@ export default function MovieDetailScreen() {
                     ) : null}
 
                     {hasViewed ? (
-                        <Animated.View entering={FadeInDown.delay(130).duration(300)} className="mt-8 gap-3 px-5">
+                        <Animated.View entering={FadeInDown.delay(130).duration(300)} className="mt-8 gap-3 px-2.5">
                             <View className="flex-row" style={{ gap: FAVORITE_CHARACTER_COLUMN_GAP }}>
                                 <Pressable
                                     onPress={() => setIsCharacterSheetVisible(true)}
@@ -585,7 +585,7 @@ export default function MovieDetailScreen() {
                     ) : null}
 
                     {details.trailerUrl ? (
-                        <Animated.View entering={FadeInDown.delay(140).duration(300)} className="mt-8 gap-2 px-5">
+                        <Animated.View entering={FadeInDown.delay(140).duration(300)} className="mt-8 gap-2 px-2.5">
                             <Text className="text-[17px] font-bold text-content-primary">Bande-annonce</Text>
                             <Pressable
                                 onPress={() => Linking.openURL(details.trailerUrl as string)}
@@ -598,7 +598,7 @@ export default function MovieDetailScreen() {
                     ) : null}
 
                     {details.overview ? (
-                        <Animated.View entering={FadeInDown.delay(160).duration(300)} className="mt-8 gap-2 px-5">
+                        <Animated.View entering={FadeInDown.delay(160).duration(300)} className="mt-8 gap-2 px-2.5">
                             <Text className="text-[17px] font-bold text-content-primary">Synopsis</Text>
                             <Text className="text-[14px] leading-5 text-content-secondary">{details.overview}</Text>
                         </Animated.View>
@@ -606,7 +606,7 @@ export default function MovieDetailScreen() {
 
                     {seasons.length > 0 ? (
                         <Animated.View entering={FadeInDown.delay(200).duration(300)} className="mt-8 gap-3">
-                            <View className="flex-row items-center justify-between px-5">
+                            <View className="flex-row items-center justify-between px-2.5">
                                 <Text className="text-[17px] font-bold text-content-primary">Saisons</Text>
                                 {canMarkAllShowWatched ? (
                                     <Pressable
@@ -621,7 +621,7 @@ export default function MovieDetailScreen() {
                             <ScrollView
                                 horizontal
                                 showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={{ gap: 14, paddingHorizontal: 20 }}
+                                contentContainerStyle={{ gap: 14, paddingHorizontal: 10 }}
                             >
                                 {seasons.map((season) => {
                                     const watchedCount = seasonWatchedCounts.get(season.seasonNumber) ?? 0
@@ -677,11 +677,11 @@ export default function MovieDetailScreen() {
 
                     {similar.length > 0 ? (
                         <Animated.View entering={FadeInDown.delay(200).duration(300)} className="mt-8 gap-3">
-                            <Text className="px-5 text-[17px] font-bold text-content-primary">Titres similaires</Text>
+                            <Text className="px-2.5 text-[17px] font-bold text-content-primary">Titres similaires</Text>
                             <ScrollView
                                 horizontal
                                 showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={{ gap: 14, paddingHorizontal: 20 }}
+                                contentContainerStyle={{ gap: 14, paddingHorizontal: 10 }}
                             >
                                 {similar.map((item) => (
                                     <BrowseMovieCard

@@ -273,7 +273,7 @@ export default function SwipeDeckScreen() {
 
     return (
         <SafeAreaView className="flex-1 bg-background" edges={[ 'top' ]}>
-            <View className="mb-2 flex-row items-center gap-3 px-5">
+            <View className="mb-2 flex-row items-center gap-3 px-2.5">
                 <Pressable onPress={() => router.back()} hitSlop={8} className="active:opacity-60">
                     <ChevronLeft size={26} color="#FFFFFF" />
                 </Pressable>

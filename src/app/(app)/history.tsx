@@ -40,7 +40,7 @@ function flattenSections(sections: TimelineSection[]): TimelineListItem[] {
 
 function TimelineSectionHeader({ label }: { label: string }) {
     return (
-        <View className="bg-background px-5 pb-2 pt-5">
+        <View className="bg-background px-2.5 pb-2 pt-5">
             <Text className="text-[13px] font-semibold uppercase tracking-wide text-content-secondary">{label}</Text>
         </View>
     )
@@ -54,7 +54,7 @@ function TimelineEventRow({ event, isFirstInGroup, isLastInGroup }: {
     const { label, icon: Icon, color } = getMovieEventDisplay(event)
 
     return (
-        <View className="flex-row px-5">
+        <View className="flex-row px-2.5">
             <View className="items-center" style={{ width: NODE_SIZE }}>
                 <View className="w-px flex-1 bg-border-subtle" style={{ opacity: isFirstInGroup ? 0 : 1 }} />
                 <View
@@ -88,7 +88,7 @@ function TimelineEventRow({ event, isFirstInGroup, isLastInGroup }: {
 
 function HistorySkeleton() {
     return (
-        <View className="gap-4 px-5 pt-2">
+        <View className="gap-4 px-2.5 pt-2">
             {Array.from({ length: 6 }).map((_, index) => (
                 <View key={index} className="flex-row items-center gap-3">
                     <Skeleton width={NODE_SIZE} height={NODE_SIZE} rounded={NODE_SIZE / 2} />
@@ -113,7 +113,7 @@ export default function HistoryScreen() {
 
     return (
         <SafeAreaView className="flex-1 bg-background" edges={[ 'top', 'bottom' ]}>
-            <View className="mb-2 flex-row items-center gap-3 px-5">
+            <View className="mb-2 flex-row items-center gap-3 px-2.5">
                 <Pressable onPress={() => router.back()} hitSlop={8} className="active:opacity-60">
                     <ChevronLeft size={26} color="#FFFFFF" />
                 </Pressable>

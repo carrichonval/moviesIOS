@@ -1,9 +1,16 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Dimensions, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
-import Animated, { FadeInDown } from 'react-native-reanimated'
-import { Calendar, ChevronRight, Clapperboard, Eye, Heart, History, ListChecks, Star, Tv } from 'lucide-react-native'
+import Animated, {
+    Easing,
+    FadeInDown,
+    useAnimatedStyle,
+    useSharedValue,
+    withTiming,
+    type SharedValue,
+} from 'react-native-reanimated'
+import { ChevronRight, Clapperboard, Eye, Heart, History, ListChecks, Star, Tv } from 'lucide-react-native'
 import { SectionHeader } from '@/components/ui/SectionHeader'
 import { StatTile } from '@/components/ui/StatTile'
 import { BarRow } from '@/components/ui/BarRow'
@@ -13,7 +20,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { useMovieStats, type MovieStats } from '@/features/stats/useMovieStats'
 import { MAEVA_RATING_COLOR, VALENTIN_RATING_COLOR } from '@/constants/people'
 
-const HORIZONTAL_PADDING = 20
+const HORIZONTAL_PADDING = 10
 const CARD_PADDING = 16
 const CHART_WIDTH = Dimensions.get('window').width - HORIZONTAL_PADDING * 2 - CARD_PADDING * 2
 
@@ -22,21 +29,42 @@ const SHOWS_COLOR = '#BF5AF2'
 const GENRE_COLORS = [ '#409CFF', '#BF5AF2', '#30D158', '#FF9F0A', '#FF453A', '#FF2D55', '#FFD60A', '#64D2FF' ]
 const RATING_BAR_HEIGHT = 130
 
+// `progress` is one shared value driving every bar at once (0 → 1 on mount) — each bar just
+// scales its own target height by it, same "single driver, many readers" shape as the
+// donut's sweep. Growing from the bottom on load reads as much more "alive" than the bars
+// just appearing at full height, and keeps this chart visually consistent with the donut's
+// own reveal animation right above it.
+function RatingBar({ targetHeight, color, progress }: { targetHeight: number; color: string; progress: SharedValue<number> }) {
+    const animatedStyle = useAnimatedStyle(() => ({
+        height: Math.max(progress.value * targetHeight, 2),
+    }))
+
+    return <Animated.View className="w-3.5 rounded-t-md" style={[ { backgroundColor: color }, animatedStyle ]} />
+}
+
 function RatingDistributionChart({ data }: { data: MovieStats[ 'ratingDistribution' ] }) {
     const maxCount = Math.max(...data.flatMap((d) => [ d.valentinCount, d.maevaCount ]), 1)
+
+    const progress = useSharedValue(0)
+    useEffect(() => {
+        progress.value = 0
+        progress.value = withTiming(1, { duration: 700, easing: Easing.out(Easing.cubic) })
+    }, [ data, progress ])
 
     return (
         <View>
             <View className="flex-row items-end justify-between" style={{ height: RATING_BAR_HEIGHT }}>
                 {data.map((d) => (
                     <View key={d.value} className="flex-1 flex-row items-end justify-center gap-1.5">
-                        <View
-                            className="w-3.5 rounded-t-md"
-                            style={{ height: Math.max((d.maevaCount / maxCount) * RATING_BAR_HEIGHT, 2), backgroundColor: MAEVA_RATING_COLOR }}
+                        <RatingBar
+                            targetHeight={(d.maevaCount / maxCount) * RATING_BAR_HEIGHT}
+                            color={MAEVA_RATING_COLOR}
+                            progress={progress}
                         />
-                        <View
-                            className="w-3.5 rounded-t-md"
-                            style={{ height: Math.max((d.valentinCount / maxCount) * RATING_BAR_HEIGHT, 2), backgroundColor: VALENTIN_RATING_COLOR }}
+                        <RatingBar
+                            targetHeight={(d.valentinCount / maxCount) * RATING_BAR_HEIGHT}
+                            color={VALENTIN_RATING_COLOR}
+                            progress={progress}
                         />
                     </View>
                 ))}
@@ -229,38 +257,6 @@ export default function StatsScreen() {
                     </View>
                 </Animated.View>
 
-                {stats.topShowByEpisodes ? (
-                    <Animated.View entering={FadeInDown.delay(300).duration(400)} className="mb-3">
-                        <Pressable
-                            onPress={() =>
-                                router.push({
-                                    pathname: '/movie/[id]',
-                                    params: { id: String(stats.topShowByEpisodes?.tmdbId), mediaType: 'tv' },
-                                })
-                            }
-                            className="flex-row items-center gap-3 rounded-2xl border border-border-subtle bg-surface px-4 py-3.5 active:opacity-70"
-                        >
-                            <Tv size={20} color="#BF5AF2" />
-                            <Text className="flex-1 text-[15px] text-content-primary" numberOfLines={1}>
-                                <Text className="font-semibold">Série la plus regardée : </Text>
-                                {stats.topShowByEpisodes.name} ({stats.topShowByEpisodes.count} épisodes)
-                            </Text>
-                            <ChevronRight size={18} color="#8E8E93" />
-                        </Pressable>
-                    </Animated.View>
-                ) : null}
-
-                {stats.addedThisMonthCount > 0 ? (
-                    <Animated.View entering={FadeInDown.delay(330).duration(400)}>
-                        <View className="flex-row items-center gap-3 rounded-2xl border border-border-subtle bg-surface px-4 py-3.5">
-                            <Calendar size={20} color="#409CFF" />
-                            <Text className="flex-1 text-[15px] text-content-primary">
-                                <Text className="font-semibold">{stats.addedThisMonthCount}</Text> titre
-                                {stats.addedThisMonthCount > 1 ? 's' : ''} ajouté{stats.addedThisMonthCount > 1 ? 's' : ''} ce mois-ci
-                            </Text>
-                        </View>
-                    </Animated.View>
-                ) : null}
             </ScrollView>
         </SafeAreaView>
     )
