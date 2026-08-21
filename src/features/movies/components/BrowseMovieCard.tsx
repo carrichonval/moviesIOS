@@ -1,6 +1,7 @@
 import { memo, useMemo } from 'react'
 import { Alert, Pressable, StyleSheet, Text, View, type NativeSyntheticEvent } from 'react-native'
 import { Image } from 'expo-image'
+import { BlurView } from 'expo-blur'
 import * as Haptics from 'expo-haptics'
 import Animated, { FadeIn } from 'react-native-reanimated'
 import ContextMenu, {
@@ -256,20 +257,47 @@ function BrowseMovieCardComponent({
         </>
     )
 
+    // Decoy digit shown (blurred) in place of the partner's real rating badge, same idea
+    // and gate as decoyRating on the detail screen (movie/[id].tsx): random so a blurred
+    // glimpse can't leak the real number, seeded per entry so it doesn't reshuffle on every
+    // re-render.
+    const decoyRating = useMemo(() => Math.floor(Math.random() * 5) + 1, [ libraryEntry?.libraryEntryId ])
+
     // Each person's note on this title, as a small heart + number — same shape as the
     // partner-rating badge on the detail screen (`movie/[id].tsx`), one on each bottom
-    // corner instead of side by side, visible without opening the long-press menu.
+    // corner instead of side by side, visible without opening the long-press menu. Blurred
+    // with the same rule as that screen: only once there's a real rating to hide (a badge
+    // for a `null` rating never renders at all, see the `&&` below) and only for whichever
+    // of the two badges isn't mine — my own rating is never blurred, never mind whose phone
+    // this is.
+    const isValentinRatingBlurred = session?.user.id !== VALENTIN_USER_ID && myRating === null
+    const isMaevaRatingBlurred = session?.user.id !== MAEVA_USER_ID && myRating === null
+
     const valentinRatingBadge = showRatingBadges && valentinRating ? (
-        <View className="flex-row items-center gap-1 rounded-full bg-black/60 px-1.5 py-1">
-            <Heart size={12} color={VALENTIN_RATING_COLOR} fill={VALENTIN_RATING_COLOR} />
-            <Text className="text-[11px] font-semibold text-content-primary">{valentinRating}</Text>
+        <View className="overflow-hidden rounded-full">
+            <View className="flex-row items-center gap-1 bg-black/60 px-1.5 py-1">
+                <Heart size={12} color={VALENTIN_RATING_COLOR} fill={VALENTIN_RATING_COLOR} />
+                <Text className="text-[11px] font-semibold text-content-primary">
+                    {isValentinRatingBlurred ? decoyRating : valentinRating}
+                </Text>
+            </View>
+            {isValentinRatingBlurred ? (
+                <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+            ) : null}
         </View>
     ) : null
 
     const maevaRatingBadge = showRatingBadges && maevaRating ? (
-        <View className="flex-row items-center gap-1 rounded-full bg-black/60 px-1.5 py-1">
-            <Heart size={12} color={MAEVA_RATING_COLOR} fill={MAEVA_RATING_COLOR} />
-            <Text className="text-[11px] font-semibold text-content-primary">{maevaRating}</Text>
+        <View className="overflow-hidden rounded-full">
+            <View className="flex-row items-center gap-1 bg-black/60 px-1.5 py-1">
+                <Heart size={12} color={MAEVA_RATING_COLOR} fill={MAEVA_RATING_COLOR} />
+                <Text className="text-[11px] font-semibold text-content-primary">
+                    {isMaevaRatingBlurred ? decoyRating : maevaRating}
+                </Text>
+            </View>
+            {isMaevaRatingBlurred ? (
+                <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+            ) : null}
         </View>
     ) : null
 
